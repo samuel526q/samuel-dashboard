@@ -1,0 +1,13 @@
+{
+  "name": "Samuel Dashboard",
+  "short_name": "Samuel",
+  "start_url": "/samuel-dashboard/",
+  "scope": "/samuel-dashboard/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
