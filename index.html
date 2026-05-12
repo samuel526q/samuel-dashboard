@@ -569,6 +569,10 @@ CREATE POLICY "allow_all" ON app_state
     <div class="modal-set-lbl" id="modal-set-lbl">Set 1</div>
     <div class="modal-ex-nm" id="modal-ex-nm"></div>
     <div class="reps-display" id="modal-reps">10</div>
+    <div style="display:flex;justify-content:center;align-items:center;gap:24px;margin-bottom:12px;">
+      <button onclick="adjustReps(-1)" style="width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#f1f5f9;font-size:24px;cursor:pointer;">−</button>
+      <button onclick="adjustReps(1)"  style="width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#f1f5f9;font-size:24px;cursor:pointer;">＋</button>
+    </div>
     <div class="quick-chips" id="quick-chips"></div>
     <button id="modal-confirm" onclick="confirmSet()">✓ Set bestätigen</button>
   </div>
@@ -917,10 +921,11 @@ function openModal(ei, si) {
   const prev = S.wo_session[ei]?.[si];
   document.getElementById('modal-set-lbl').textContent = `Set ${si+1} von ${ex.sets}`;
   document.getElementById('modal-ex-nm').textContent = ex.name;
-  document.getElementById('modal-reps').textContent = prev ?? 10;
+  const targetReps = ex.reps ? (String(ex.reps).split('–')[0].replace(/\D/g,'') || '10') : '10';
+  document.getElementById('modal-reps').textContent = prev ?? targetReps;
   const cc = document.getElementById('quick-chips');
   cc.innerHTML = '';
-  ['6','8','10','12','15','F'].forEach(v => {
+  ['1','2','3','4','5','6','8','10','12','15','F'].forEach(v => {
     const ch = document.createElement('button');
     ch.className = `chip${String(prev) === v ? ' active' : ''}`;
     ch.textContent = v;
@@ -938,6 +943,17 @@ function openModal(ei, si) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
   document.getElementById('wo-modal').classList.remove('open');
+}
+
+function adjustReps(delta) {
+  const el = document.getElementById('modal-reps');
+  const current = el.textContent;
+  if (current === 'F') { el.textContent = 15; return; }
+  const val = Math.max(1, (parseInt(current) || 1) + delta);
+  el.textContent = val;
+  document.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('active', c.textContent === String(val));
+  });
 }
 
 function confirmSet() {
