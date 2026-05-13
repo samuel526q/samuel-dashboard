@@ -414,6 +414,8 @@
       <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Stark gestartet. Weiter so.</div>
     </div>
     <div id="routine-list"></div>
+    <p class="section-title">Heute To-Dos</p>
+    <div id="morgen-todos"></div>
   </div>
 
   <!-- ════════════════ WORKOUT ════════════════ -->
@@ -466,25 +468,59 @@
 
   <!-- ════════════════ ABEND ════════════════ -->
   <div id="tab-abend" class="tab-view">
-    <p class="section-title">Abend-Habits</p>
-    <div id="evening-list"></div>
-    <p class="section-title">Mood & Energie</p>
-    <div class="mood-grid">
-      <div class="mood-card">
-        <div class="mood-card-title">⚡ Energie</div>
-        <div class="mood-icons" id="energy-icons"></div>
-      </div>
-      <div class="mood-card">
-        <div class="mood-card-title">😊 Stimmung</div>
-        <div class="mood-icons" id="mood-icons"></div>
-      </div>
+  <p class="section-title">Abend-Habits</p>
+  <div id="evening-list"></div>
+
+  <p class="section-title">Mood & Energie</p>
+  <div class="mood-grid">
+    <div class="mood-card">
+      <div class="mood-card-title">⚡ Energie</div>
+      <div class="mood-icons" id="energy-icons"></div>
     </div>
-    <p class="section-title">Quick Notes</p>
-    <div class="card notes-card">
-      <textarea id="notes-textarea" placeholder="Gedanken, Ideen, morgen erledigen..."></textarea>
-      <div id="notes-ts"></div>
+    <div class="mood-card">
+      <div class="mood-card-title">😊 Stimmung</div>
+      <div class="mood-icons" id="mood-icons"></div>
     </div>
   </div>
+
+  <p class="section-title">Mental Health</p>
+  <div class="card" style="display:flex;gap:10px;">
+    <button id="cannabis-btn" onclick="toggleTracking('cannabis')" style="flex:1;padding:12px 8px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#f1f5f9;font-size:12px;font-weight:700;cursor:pointer;">🚫 Cannabis-frei</button>
+    <button id="microdose-btn" onclick="toggleTracking('microdose')" style="flex:1;padding:12px 8px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#f1f5f9;font-size:12px;font-weight:700;cursor:pointer;">🍄 Microdosing</button>
+  </div>
+
+  <p class="section-title">Abend-Journal</p>
+  <div class="card notes-card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <button id="voice-btn" onclick="toggleVoice()" style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#f1f5f9;font-size:20px;cursor:pointer;flex-shrink:0;">🎙️</button>
+      <span id="voice-status" style="font-size:11px;color:rgba(241,245,249,0.45);">Tippen oder sprechen — Todos werden automatisch erkannt</span>
+    </div>
+    <textarea id="notes-textarea" placeholder="Wie war der Tag? Was war gut, was war schwer?" style="min-height:120px;"></textarea>
+    <div id="notes-ts"></div>
+  </div>
+
+  <p class="section-title">Morgen To-Dos</p>
+  <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button id="todo-voice-btn" onclick="toggleTodoVoice()" style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#f1f5f9;font-size:20px;cursor:pointer;flex-shrink:0;">🎙️</button>
+      <input id="todo-input" placeholder="Todo hinzufügen..." style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:10px 12px;color:#f1f5f9;font-size:14px;outline:none;">
+      <button onclick="addTodo()" style="padding:10px 14px;border-radius:10px;border:none;background:rgba(59,130,246,0.25);color:#3b82f6;font-size:20px;font-weight:700;cursor:pointer;">+</button>
+    </div>
+    <div id="todo-list-abend"></div>
+  </div>
+</div>
+
+  <!-- ════════════════ PLAN ════════════════ -->
+  <div id="tab-plan" class="tab-view">
+  <p class="section-title">Heute</p>
+  <div id="plan-heute"></div>
+  <p class="section-title">Morgen</p>
+  <div id="plan-morgen"></div>
+  <p class="section-title">Diese Woche</p>
+  <div id="plan-woche"></div>
+  <p class="section-title">Später</p>
+  <div id="plan-später"></div>
+</div>
 
   <!-- ════════════════ SETTINGS ════════════════ -->
   <div id="tab-settings" class="tab-view">
@@ -556,6 +592,9 @@ CREATE POLICY "allow_all" ON app_state
     </button>
     <button class="nav-btn" data-tab="abend" onclick="switchTab('abend')">
       <span class="ni">🌙</span><span>Abend</span>
+    </button>
+    <button class="nav-btn" data-tab="plan" onclick="switchTab('plan')">
+      <span class="ni">📋</span><span>Plan</span>
     </button>
     <button class="nav-btn" data-tab="settings" onclick="switchTab('settings')">
       <span class="ni">⚙️</span><span>Settings</span>
@@ -714,6 +753,8 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
   document.querySelector(`.nav-btn[data-tab="${tab}"]`).classList.add('active');
+  if (tab === 'morgen') renderTodos();
+  if (tab === 'plan') renderPlan();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1088,7 +1129,7 @@ function renderAbend() {
   // Energy
   const ee = document.getElementById('energy-icons');
   ee.innerHTML = '';
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 10; i++) {
     const b = document.createElement('button');
     b.className = `mood-icon-btn energy-btn${S.mood.energy===i?' active':''}`;
     b.textContent = '⚡';
@@ -1114,7 +1155,7 @@ notesEl.oninput = () => {
   clearTimeout(notesTimer);
   notesTimer = setTimeout(async () => {
     S.notes = notesEl.value;
-    await upsert(`notes_${TODAY}`, S.notes);
+    await upsert(`journal_${TODAY}`, S.notes);
     const t = new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('notes-ts').textContent = `Gespeichert ${t}`;
   }, 1000);
@@ -1197,7 +1238,7 @@ async function init() {
   renderQuote();
   renderDate();
 
-  const [routine,woLast,woCurr,woSess,h75,water,post,mood,notes,evening] = await Promise.all([
+  const [routine,woLast,woCurr,woSess,h75,water,post,mood,notes,evening,tracking,allTodos] = await Promise.all([
     dbRead(`r_${TODAY}`),
     dbRead('wo_last'),
     dbRead('wo_current'),
@@ -1206,8 +1247,10 @@ async function init() {
     dbRead(`water_${TODAY}`),
     dbRead(`post_${TODAY}`),
     dbRead(`mood_${TODAY}`),
-    dbRead(`notes_${TODAY}`),
+    dbRead(`journal_${TODAY}`),
     dbRead(`evening_${TODAY}`),
+    dbRead(`tracking_${TODAY}`),
+    dbRead('all_todos'),
   ]);
 
   S.routine = routine || {};
@@ -1220,6 +1263,8 @@ async function init() {
   S.mood = mood || {energy:0, mood:0};
   S.notes = notes || '';
   S.evening = evening || {};
+  S.tracking = tracking || {};
+  S.all_todos = allTodos || [];
 
   renderRoutineList();
   renderWorkout();
@@ -1229,8 +1274,120 @@ async function init() {
   renderAbend();
   notesEl.value = S.notes;
   loadSettings();
+  applyTrackingStyle('cannabis');
+  applyTrackingStyle('microdose');
+  renderTodos();
+  renderPlan();
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+// ══ TRACKING (Cannabis / Microdosing) ══
+function toggleTracking(type) {
+  if (!S.tracking) S.tracking = {};
+  S.tracking[type] = !S.tracking[type];
+  applyTrackingStyle(type);
+  upsert(`tracking_${TODAY}`, S.tracking);
+}
+function applyTrackingStyle(type) {
+  const btn = document.getElementById(type==='cannabis'?'cannabis-btn':'microdose-btn');
+  if (!btn) return;
+  const active = S.tracking?.[type];
+  btn.style.background = active ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.05)';
+  btn.style.borderColor = active ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.12)';
+}
+
+// ══ VOICE — Journal ══
+let recognition = null;
+function toggleVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Spracheingabe nicht unterstützt'); return; }
+  if (recognition) { recognition.stop(); return; }
+  recognition = new SR();
+  recognition.lang = 'de-DE'; recognition.continuous = true; recognition.interimResults = false;
+  recognition.onresult = e => {
+    const t = Array.from(e.results).map(r=>r[0].transcript).join(' ');
+    const ta = document.getElementById('notes-textarea');
+    ta.value = (ta.value ? ta.value+' ' : '') + t;
+    ta.dispatchEvent(new Event('input'));
+  };
+  recognition.onerror = recognition.onend = () => {
+    recognition = null;
+    document.getElementById('voice-btn').textContent = '🎙️';
+    document.getElementById('voice-status').textContent = 'Tippen oder sprechen — Todos werden automatisch erkannt';
+  };
+  recognition.start();
+  document.getElementById('voice-btn').textContent = '🔴';
+  document.getElementById('voice-status').textContent = 'Aufnahme läuft...';
+}
+
+// ══ VOICE — Todos ══
+let todoRec = null;
+function toggleTodoVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  if (todoRec) { todoRec.stop(); return; }
+  todoRec = new SR();
+  todoRec.lang = 'de-DE'; todoRec.interimResults = false;
+  todoRec.onresult = e => { document.getElementById('todo-input').value = e.results[0][0].transcript; todoRec=null; document.getElementById('todo-voice-btn').textContent='🎙️'; };
+  todoRec.onerror = todoRec.onend = () => { todoRec=null; document.getElementById('todo-voice-btn').textContent='🎙️'; };
+  todoRec.start();
+  document.getElementById('todo-voice-btn').textContent = '🔴';
+}
+
+// ══ TODOS ══
+function addTodo() {
+  const inp = document.getElementById('todo-input');
+  const text = inp.value.trim(); if (!text) return;
+  if (!S.all_todos) S.all_todos = [];
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const dateStr = tomorrow.toISOString().split('T')[0];
+  S.all_todos.push({ id: `todo_${Date.now()}`, text, date: dateStr, status: 'pending', source: 'manual' });
+  inp.value = '';
+  renderTodos(); renderPlan();
+  upsert('all_todos', S.all_todos);
+}
+function toggleTodo(id) {
+  const t = (S.all_todos||[]).find(x=>x.id===id);
+  if (!t) return;
+  t.status = t.status==='done' ? 'pending' : 'done';
+  renderTodos(); renderPlan();
+  upsert('all_todos', S.all_todos);
+}
+function renderTodos() {
+  const today = TODAY;
+  const todayTodos = (S.all_todos||[]).filter(t=>t.date===today && t.status==='pending');
+  const tomorrowTodos = (S.all_todos||[]).filter(t=>{ const d=new Date(today); d.setDate(d.getDate()+1); return t.date===d.toISOString().split('T')[0] && t.status==='pending'; });
+  ['morgen-todos','todo-list-abend'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    const list = id==='morgen-todos' ? todayTodos : tomorrowTodos;
+    el.innerHTML = list.length ? '' : '<div style="font-size:13px;color:rgba(241,245,249,0.35);padding:8px 0;">Keine Todos</div>';
+    list.forEach(t => {
+      const d = document.createElement('div');
+      d.style = 'display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);';
+      d.innerHTML = `<button onclick="toggleTodo('${t.id}')" style="width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:none;cursor:pointer;flex-shrink:0;"></button><span style="flex:1;font-size:14px;">${t.text}</span>`;
+      el.appendChild(d);
+    });
+  });
+}
+function renderPlan() {
+  const sections = {
+    'plan-heute': t => t.date === TODAY,
+    'plan-morgen': t => { const d=new Date(TODAY); d.setDate(d.getDate()+1); return t.date===d.toISOString().split('T')[0]; },
+    'plan-woche': t => { const d=new Date(t.date); const diff=(d-new Date(TODAY))/86400000; return diff>1 && diff<=7; },
+    'plan-später': t => { const d=new Date(t.date); return (d-new Date(TODAY))/86400000>7; }
+  };
+  Object.entries(sections).forEach(([id, filter]) => {
+    const el = document.getElementById(id); if (!el) return;
+    const items = (S.all_todos||[]).filter(t=>t.status==='pending' && filter(t));
+    el.innerHTML = items.length ? '' : '<div style="font-size:13px;color:rgba(241,245,249,0.35);padding:4px 0;">—</div>';
+    items.forEach(t => {
+      const d = document.createElement('div');
+      d.className = 'card'; d.style = 'padding:10px 14px;margin-bottom:6px;display:flex;gap:10px;align-items:center;';
+      d.innerHTML = `<button onclick="toggleTodo('${t.id}')" style="width:20px;height:20px;border-radius:5px;border:1px solid rgba(255,255,255,0.2);background:none;cursor:pointer;flex-shrink:0;"></button><span style="flex:1;font-size:13px;">${t.text}</span><span style="font-size:11px;color:rgba(241,245,249,0.3);">${t.date}</span>`;
+      el.appendChild(d);
+    });
+  });
 }
 
 init();
