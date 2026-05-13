@@ -1,16 +1,27 @@
-const CACHE = 'samuel-v2';
+const CACHE = 'samuel-v3';
 const ASSETS = ['/samuel-dashboard/', '/samuel-dashboard/index.html', '/samuel-dashboard/manifest.json', '/samuel-dashboard/sw.js', '/samuel-dashboard/icon.svg'];
 
-self.addEventListener('install', e =>
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)))
-);
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  self.skipWaiting();
+});
 
-self.addEventListener('activate', e =>
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ))
-);
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
 
-self.addEventListener('fetch', e =>
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/samuel-dashboard/index.html'))))
-);
+self.addEventListener('fetch', e => {
+  e.respondWith(
+    fetch(e.request)
+      .then(response => {
+        const clone = response.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(e.request).then(r => r || caches.match('/samuel-dashboard/index.html')))
+  );
+});
