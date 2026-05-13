@@ -186,6 +186,7 @@
     .set-btn .sl { font-size: 8px; }
     .set-btn.logged { background: rgba(16,185,129,0.15); border-color: var(--green); color: var(--green); }
     .set-btn.logged .sl { color: var(--green); }
+    .sb-lbl { font-size: 8px; color: var(--text-muted); }
 
     #wo-finish-btn {
       width: 100%; padding: 16px; background: var(--indigo); color: white;
@@ -1033,10 +1034,12 @@ function updateMorningRing() {
   fill.style.strokeDashoffset = circ - (done/total) * circ;
   fill.style.stroke = done === total ? 'var(--green)' : 'var(--indigo)';
   document.getElementById('ring-num').textContent = `${done}/${total}`;
+  const checkDone = ROUTINE.filter((x, i) => x.type === 'check' && S.routine[i]).length;
+  const checkTotal = ROUTINE.filter(x => x.type === 'check').length;
   const mc = document.getElementById('morning-complete');
-  if (done === total && done > 0 && !mc.classList.contains('show')) {
+  if (checkDone === checkTotal && checkTotal > 0 && !mc.classList.contains('show')) {
     mc.classList.add('show'); checkMorningComplete();
-  } else if (done < total) mc.classList.remove('show');
+  } else if (checkDone < checkTotal) mc.classList.remove('show');
 }
 
 function renderRoutineList() {
@@ -1182,7 +1185,7 @@ function renderWorkout() {
     for (let s = 0; s < ex.sets; s++) {
       const r = sess[s]; const logged = r !== undefined;
       sets += `<button class="set-btn${logged ? ' logged' : ''}" onclick="openModal(${ei},${s})">
-        <span>${logged ? r : 'S'+(s+1)}</span><span class="sl">${logged ? 'rep' : 'Set'}</span>
+        <span>${logged ? r : 'S'+(s+1)}</span><span class="sb-lbl">${logged ? 'rep' : 'Set'}</span>
       </button>`;
     }
     card.innerHTML = `
@@ -1268,6 +1271,15 @@ document.getElementById('wo-finish-btn').onclick = async () => {
   try { await navigator.clipboard.writeText(text); } catch(e) { prompt('Training Log:', text); }
   const fb = document.getElementById('wo-copy-fb');
   fb.classList.add('show'); setTimeout(() => fb.classList.remove('show'), 2500);
+  const prevWoDate = localStorage.getItem('wo_last_date');
+  const prevStreak = await dbRead('gym_streak') || 0;
+  const yest = new Date(); yest.setDate(yest.getDate()-1);
+  const yesterdayStr = yest.toISOString().split('T')[0];
+  const newStreak = prevWoDate === TODAY ? prevStreak : prevWoDate === yesterdayStr ? prevStreak + 1 : 1;
+  await upsert('gym_streak', newStreak);
+  const gymEl = document.getElementById('gym-streak-counter');
+  if (gymEl) gymEl.textContent = newStreak;
+
   const rot = ['Pull','Push','Legs'];
   S.wo_last = split; S.wo_current = rot[(rot.indexOf(split)+1)%3]; S.wo_session = {};
   localStorage.setItem('wo_last_date', TODAY);
