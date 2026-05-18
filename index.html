@@ -426,16 +426,7 @@
     /* CHECKPOINT: CSS fertig ✓ */
 
     /* ── Bedtime Ring ── */
-    #bedtime-ring-wrap {
-      display: flex; align-items: center; gap: 14px;
-      background: var(--card); border: 1px solid var(--card-border);
-      border-radius: 14px; padding: 12px 16px; margin-bottom: 10px;
-    }
-    #bedtime-ring-wrap svg { flex-shrink: 0; }
-    .bedtime-info { flex: 1; }
-    .bedtime-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-muted); text-transform: uppercase; }
-    .bedtime-time { font-size: 20px; font-weight: 700; color: var(--text); margin: 2px 0; }
-    .bedtime-sub { font-size: 11px; color: var(--text-muted); }
+    #bedtime-ring-wrap { display: flex; flex-direction: column; align-items: center; padding: 14px 0 8px; margin-bottom: 10px; }
 
     /* ── Supplement Tracker ── */
     #supp-list { display: flex; flex-direction: column; gap: 6px; }
@@ -486,18 +477,21 @@
 
     <!-- Bedtime Ring -->
     <div id="bedtime-ring-wrap">
-      <svg width="52" height="52" viewBox="0 0 52 52">
-        <circle cx="26" cy="26" r="21" fill="none" stroke="rgba(190,195,215,0.08)" stroke-width="4"/>
-        <circle id="bedtime-ring-track" cx="26" cy="26" r="21" fill="none" stroke="var(--accent)" stroke-width="4"
-          stroke-dasharray="131.95" stroke-dashoffset="131.95" stroke-linecap="round"
-          style="transition:stroke-dashoffset 1s ease;transform:rotate(-90deg);transform-origin:50% 50%;"/>
-      </svg>
-      <div class="bedtime-info">
-        <div class="bedtime-label">Bis Schlafen</div>
-        <div class="bedtime-time" id="bedtime-time">—</div>
-        <div class="bedtime-sub" id="bedtime-sub">Ziel: 22:00 Uhr</div>
+      <div style="position:relative;width:130px;height:130px;">
+        <svg width="130" height="130" style="transform:rotate(-90deg)">
+          <circle cx="65" cy="65" r="56" fill="none" stroke="rgba(190,195,215,0.08)" stroke-width="9"/>
+          <circle id="bedtime-ring-track" cx="65" cy="65" r="56" fill="none"
+            stroke="rgba(190,195,215,0.85)" stroke-width="9"
+            stroke-dasharray="351.86" stroke-dashoffset="351.86"
+            stroke-linecap="round"
+            style="filter:drop-shadow(0 0 6px rgba(190,195,215,0.30));transition:stroke-dashoffset 1s ease;"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;">
+          <div id="bedtime-pct" style="font-size:26px;font-weight:700;color:var(--text);letter-spacing:-0.5px;">—</div>
+          <div style="font-size:9px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;">Tag</div>
+        </div>
       </div>
-      <div style="font-size:22px;opacity:.7;">🌙</div>
+      <div id="bedtime-label" style="margin-top:8px;font-size:12px;color:var(--text-muted);text-align:center;"></div>
     </div>
 
     <div class="greeting">
@@ -2261,68 +2255,126 @@ function resetAll() {
 // BEDTIME RING
 // ══════════════════════════════════════════════════════
 function renderBedtimeRing() {
-  const BEDTIME_H = 22, BEDTIME_M = 0;
   const now = new Date();
-  const target = new Date(now);
-  target.setHours(BEDTIME_H, BEDTIME_M, 0, 0);
-  if (target <= now) target.setDate(target.getDate() + 1);
+  const wakeHour = 6;
+  const sleepHour = 23;
+  const totalDayMinutes = (sleepHour - wakeHour) * 60;
+  const elapsedMinutes = Math.max(0, (now.getHours() - wakeHour) * 60 + now.getMinutes());
+  const pct = Math.min(1, elapsedMinutes / totalDayMinutes);
 
-  const totalMs = 16 * 3600 * 1000; // 16h day (6:00 → 22:00)
-  const remainMs = target - now;
-  const pct = Math.min(1, Math.max(0, 1 - remainMs / totalMs));
-
-  const CIRC = 131.95;
+  const CIRC = 351.86;
   const offset = CIRC - pct * CIRC;
   const ring = document.getElementById('bedtime-ring-track');
-  if (ring) {
-    ring.style.strokeDashoffset = offset;
-    ring.style.stroke = pct > 0.85 ? 'var(--amber)' : 'var(--accent)';
-  }
+  const pctEl = document.getElementById('bedtime-pct');
+  const labelEl = document.getElementById('bedtime-label');
+  if (!ring) return;
 
-  const totalMins = Math.round(remainMs / 60000);
-  const h = Math.floor(totalMins / 60);
-  const m = totalMins % 60;
-  const timeEl = document.getElementById('bedtime-time');
-  const subEl = document.getElementById('bedtime-sub');
-  if (timeEl) timeEl.textContent = h > 0 ? `${h}h ${m}m` : `${m} Min`;
-  if (subEl) subEl.textContent = pct > 0.85 ? '⚠️ Bald Schlafenszeit' : 'Ziel: 22:00 Uhr';
+  ring.style.strokeDashoffset = offset.toFixed(2);
+  const color = pct < 0.7 ? 'rgba(190,195,215,0.85)' : pct < 0.9 ? 'var(--amber)' : 'var(--red, #ef4444)';
+  ring.style.stroke = color;
+
+  if (pctEl) pctEl.textContent = Math.round(pct * 100) + '%';
+
+  const sleepTime = new Date(now);
+  sleepTime.setHours(sleepHour, 0, 0, 0);
+  const diffMs = sleepTime - now;
+  if (labelEl) {
+    if (diffMs > 0) {
+      const hLeft = Math.floor(diffMs / 3600000);
+      const mLeft = Math.floor((diffMs % 3600000) / 60000);
+      labelEl.textContent = `${hLeft}h ${mLeft}m bis Schlafenszeit · Ziel: 23:00`;
+    } else {
+      labelEl.textContent = '🌙 Zeit zum Schlafen';
+      ring.style.stroke = 'var(--accent)';
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════
 // SUPPLEMENT TRACKER
 // ══════════════════════════════════════════════════════
 const SUPPS = [
-  { id: 'omega3',    em: '🐟', name: 'Omega-3',       window: 'Morgens zum Frühstück' },
-  { id: 'vit_d',    em: '☀️', name: 'Vitamin D3+K2',  window: 'Morgens mit Fett' },
-  { id: 'magnesium',em: '💊', name: 'Magnesium',      window: 'Abends vor dem Schlafen' },
-  { id: 'creatine', em: '⚡', name: 'Kreatin',         window: 'Täglich, egal wann' },
+  { id:'kreatin',     label:'Kreatin',           emoji:'💪', max:1, note:null },
+  { id:'ltheanin',    label:'L-Theanin',          emoji:'🧠', max:1, note:'⚠️ Letzte Tablette — nachbestellen!' },
+  { id:'magnesium',   label:'Magnesium',           emoji:'⚡', max:1, note:null },
+  { id:'ashwagandha', label:'Ashwagandha 1.500mg', emoji:'🌿', max:1, note:null },
+  { id:'omega3',      label:'Omega-3 Algenöl',    emoji:'🐟', max:1, note:'⚠️ Nicht vorrätig — nachbestellen!' },
+  { id:'vitamind',    label:'Vitamin D3 + K2',    emoji:'☀️', max:1, note:null },
+  { id:'vitaminc',    label:'Vitamin C 1.000mg',  emoji:'🍋', max:2, note:'2× 500mg' },
+  { id:'probiona',    label:'Probiona',            emoji:'🦠', max:1, note:'20 Mrd KBE' },
+  { id:'purella',     label:'Purella',             emoji:'🌱', max:1, note:'Optional' },
 ];
 
 function getSuppState() {
-  try { return JSON.parse(localStorage.getItem(`supps_${TODAY}`)) || {}; } catch { return {}; }
+  const raw = localStorage.getItem('supp_state');
+  const today = new Date().toDateString();
+  if (!raw) return { date: today, logs: {}, outOfStock: {} };
+  const s = JSON.parse(raw);
+  if (!s.outOfStock) s.outOfStock = {};
+  const now = new Date();
+  if (s.date !== today && now.getHours() >= 6) return { date: today, logs: {}, outOfStock: s.outOfStock };
+  return s;
 }
 function saveSuppState(state) {
-  localStorage.setItem(`supps_${TODAY}`, JSON.stringify(state));
+  localStorage.setItem('supp_state', JSON.stringify(state));
 }
 function logSupp(id) {
-  const st = getSuppState();
-  st[id] = !st[id];
-  saveSuppState(st);
+  const state = getSuppState();
+  const supp = SUPPS.find(s => s.id === id);
+  if (!state.logs[id]) state.logs[id] = [];
+  if (state.logs[id].length >= supp.max) return;
+  if (state.outOfStock[id]) return;
+  state.logs[id].push(new Date().toTimeString().slice(0,5));
+  saveSuppState(state);
+  renderSupps();
+}
+function toggleOutOfStock(id) {
+  const state = getSuppState();
+  state.outOfStock[id] = !state.outOfStock[id];
+  saveSuppState(state);
   renderSupps();
 }
 function renderSupps() {
+  const state = getSuppState();
   const el = document.getElementById('supp-list');
   if (!el) return;
-  const st = getSuppState();
-  el.innerHTML = SUPPS.map(s => `
-    <div class="supp-item${st[s.id] ? ' logged' : ''}" onclick="logSupp('${s.id}')">
-      <div class="supp-em">${s.em}</div>
-      <div class="supp-body">
-        <div class="supp-name">${s.name}</div>
-        <div class="supp-window">${s.window}</div>
+
+  el.innerHTML = SUPPS.map(supp => {
+    const logs = state.logs[supp.id] || [];
+    const taken = logs.length;
+    const done = taken >= supp.max;
+    const oos = !!state.outOfStock[supp.id];
+    const blocked = done || oos;
+
+    let statusText = '';
+    if (oos) statusText = '❌ Nicht vorrätig';
+    else if (done) statusText = logs.map(t => `✓ ${t}`).join(' · ');
+    else if (taken > 0) statusText = logs.map(t => `✓ ${t}`).join(' · ') + ` · ${supp.max - taken}x übrig`;
+    else statusText = supp.note || `0 / ${supp.max} heute`;
+
+    const bg = oos ? 'transparent' : done ? 'var(--green-soft)' : 'var(--card)';
+    const border = oos ? 'rgba(190,195,215,0.08)' : done ? 'var(--green-border)' : 'var(--card-border)';
+    const labelColor = oos ? 'var(--text-muted)' : done ? 'var(--green)' : 'var(--text)';
+
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;background:${bg};border:1px solid ${border};border-radius:12px;opacity:${oos?'0.6':'1'};">
+      <span style="font-size:20px;">${supp.emoji}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;color:${labelColor};">${supp.label}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${statusText}</div>
       </div>
-      <div class="supp-check">${st[s.id] ? '✓' : ''}</div>
-    </div>`).join('');
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button onclick="toggleOutOfStock('${supp.id}')" title="${oos?'Wieder vorrätig':'Nicht vorrätig markieren'}"
+          style="padding:6px 8px;border-radius:8px;border:1px solid rgba(190,195,215,0.15);background:transparent;color:var(--text-muted);font-size:11px;cursor:pointer;">
+          ${oos ? '↩' : '✕'}
+        </button>
+        <button onclick="logSupp('${supp.id}')"
+          ${blocked?'disabled':''}
+          style="padding:7px 14px;border-radius:9px;border:1px solid ${done?'var(--green-border)':blocked?'rgba(190,195,215,0.1)':'var(--card-border-hover, var(--card-border))'};background:${done?'var(--green-soft)':blocked?'transparent':'var(--accent-soft, rgba(190,195,215,0.07))'};color:${done?'var(--green)':blocked?'var(--text-muted)':'var(--accent-solid, var(--accent))'};font-size:12px;font-weight:600;cursor:${blocked?'default':'pointer'};">
+          ${done ? '✓' : oos ? '—' : 'Nehmen'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════════
