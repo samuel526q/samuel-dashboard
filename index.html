@@ -1201,16 +1201,31 @@ async function loadHealthData() {
     if (dateEl) dateEl.textContent = label;
 
     const hrv = data.hrv_ms;
-    const hrvSub = !hrv ? 'Kein Wert' : hrv >= 60 ? '🟢 Erholt' : hrv >= 40 ? '🟡 Okay' : '🔴 Gestresst';
     const sleep = data.sleep_hours;
-    const sleepSub = !sleep ? 'Kein Wert' : sleep >= 7.5 ? '🟢 Top' : sleep >= 6 ? '🟡 Okay' : '🔴 Zu wenig';
 
     section.innerHTML = `
       <div class="health-grid">
-        ${healthTile('hrv',   '💚', hrv ? Math.round(hrv) : null, hrv ? 'ms' : '', 'HRV', hrvSub)}
-        ${healthTile('rhr',   '❤️', data.rhr_bpm ? Math.round(data.rhr_bpm) : null, data.rhr_bpm ? 'bpm' : '', 'Ruhepuls', data.rhr_bpm ? `${Math.round(data.rhr_bpm)} BPM` : 'Kein Wert')}
-        ${healthTile('sleep', '🌙', sleep ? sleep.toFixed(1) : null, sleep ? 'h' : '', 'Schlaf', sleepSub)}
-        ${healthTile('steps', '👟', data.steps ? data.steps.toLocaleString('de-DE') : null, '', 'Schritte', data.steps ? (data.steps >= 8000 ? '🟢 Aktiv' : '🟡 Wenig') : 'Kein Wert')}
+        ${healthTile('hrv',   '💚',
+            hrv ? Math.round(hrv) : null, hrv ? 'ms' : '',
+            'HRV', !hrv ? 'Kein Wert' : hrv >= 60 ? '🟢 Erholt' : hrv >= 40 ? '🟡 Okay' : '🔴 Gestresst')}
+        ${healthTile('rhr',   '❤️',
+            data.rhr_bpm ? Math.round(data.rhr_bpm) : null, data.rhr_bpm ? 'bpm' : '',
+            'Ruhepuls', data.rhr_bpm ? (data.rhr_bpm <= 60 ? '🟢 Top' : data.rhr_bpm <= 75 ? '🟡 Okay' : '🔴 Erhöht') : 'Kein Wert')}
+        ${healthTile('sleep', '🌙',
+            sleep ? (sleep / 60).toFixed(1) : null, sleep ? 'h' : '',
+            'Schlaf', !sleep ? 'Kein Wert' : (sleep / 60) >= 7.5 ? '🟢 Top' : (sleep / 60) >= 6 ? '🟡 Okay' : '🔴 Zu wenig')}
+        ${healthTile('steps', '👟',
+            data.steps ? data.steps.toLocaleString('de-DE') : null, '',
+            'Schritte', !data.steps ? 'Kein Wert' : data.steps >= 8000 ? '🟢 Aktiv' : '🟡 Wenig')}
+        ${healthTile('hrv',   '🔥',
+            data.active_energy ? Math.round(data.active_energy) : null, data.active_energy ? 'kcal' : '',
+            'Aktive Kal.', !data.active_energy ? 'Kein Wert' : data.active_energy >= 400 ? '🟢 Top' : '🟡 Okay')}
+        ${healthTile('sleep', '🫁',
+            data.respiratory_rate ? data.respiratory_rate.toFixed(1) : null, data.respiratory_rate ? '/min' : '',
+            'Atemfreq.', !data.respiratory_rate ? 'Kein Wert' : data.respiratory_rate >= 12 && data.respiratory_rate <= 20 ? '🟢 Normal' : '🟡 Check')}
+        ${healthTile('steps', '⚡',
+            data.exercise_minutes ? Math.round(data.exercise_minutes) : null, data.exercise_minutes ? 'min' : '',
+            'Bewegung', !data.exercise_minutes ? 'Kein Wert' : data.exercise_minutes >= 30 ? '🟢 Top' : '🟡 Wenig')}
       </div>`;
   } catch (e) {
     console.error('Health fetch error:', e);
