@@ -1619,19 +1619,19 @@ function renderTrends(history) {
   wrap.innerHTML = `
     <div class="trend-card">
       <div class="head"><span class="lbl">HRV</span><span class="arrow ${hrvT.cls}">${hrvT.arrow}</span></div>
-      <div class="val">${hrv[hrv.length-1] ?? '—'}<span class="u"> ms</span></div>
+      <div class="val">${hrv[hrv.length-1] != null ? Math.round(hrv[hrv.length-1]) : '—'}<span class="u"> ms</span></div>
       <div class="avg">Ø ${avg(hrv) ? Math.round(avg(hrv)) : '—'} · 7T</div>
       ${trendSparkSVG(hrv, '#34d399')}
     </div>
     <div class="trend-card">
       <div class="head"><span class="lbl">Ruhepuls</span><span class="arrow ${rhrT.cls}">${rhrT.arrow}</span></div>
-      <div class="val">${rhr[rhr.length-1] ?? '—'}<span class="u"> bpm</span></div>
+      <div class="val">${rhr[rhr.length-1] != null ? Math.round(rhr[rhr.length-1]) : '—'}<span class="u"> bpm</span></div>
       <div class="avg">Ø ${avg(rhr) ? Math.round(avg(rhr)) : '—'} · 7T</div>
       ${trendSparkSVG(rhr, '#f87171')}
     </div>
     <div class="trend-card">
       <div class="head"><span class="lbl">Schlaf</span><span class="arrow ${sleepT.cls}">${sleepT.arrow}</span></div>
-      <div class="val">${sleep[sleep.length-1] ?? '—'}<span class="u"> h</span></div>
+      <div class="val">${sleep[sleep.length-1] != null ? (+sleep[sleep.length-1]).toFixed(1) : '—'}<span class="u"> h</span></div>
       <div class="avg">Ø ${avg(sleep) ? avg(sleep).toFixed(1) : '—'} · 7T</div>
       ${trendSparkSVG(sleep, '#a78bfa')}
     </div>`;
@@ -1715,8 +1715,8 @@ async function loadHRChart(date, c) {
     hrData.forEach(h => { hourData[h.hour] = h.avg_bpm; });
     const labels = Array.from({length: 24}, (_, i) => i % 6 === 0 ? `${i}:00` : '');
     const valid  = hourData.filter(v => v !== null);
-    const min    = Math.min(...valid);
-    const max    = Math.max(...valid);
+    const min    = Math.round(Math.min(...valid));
+    const max    = Math.round(Math.max(...valid));
     const avg    = Math.round(valid.reduce((s,v) => s+v, 0) / valid.length);
 
     if (statsEl) statsEl.innerHTML = `
