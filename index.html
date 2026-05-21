@@ -94,6 +94,28 @@
       display: flex; justify-content: space-between; align-items: baseline;
     }
     .section-title .meta { color: var(--accent); font-weight: 700; letter-spacing: 0.06em; }
+
+    /* ── Health Section ── */
+    .health-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
+    .health-tile {
+      background: var(--card); background-image: var(--shine);
+      border: 1px solid var(--card-border); border-radius: 14px;
+      padding: 13px 14px; display: flex; flex-direction: column; gap: 4px;
+      position: relative; overflow: hidden;
+    }
+    .health-tile::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 14px 14px 0 0; }
+    .health-tile.hrv::before   { background: linear-gradient(90deg, #10b981, #34d399); }
+    .health-tile.rhr::before   { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .health-tile.sleep::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+    .health-tile.steps::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .health-tile-icon { font-size: 18px; }
+    .health-tile-val  { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; line-height: 1; }
+    .health-tile-val .unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 2px; }
+    .health-tile-label { font-size: 10px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    .health-tile-sub { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+    .health-tile.no-data .health-tile-val { font-size: 13px; color: var(--text-muted); font-weight: 500; letter-spacing: 0; }
+    .health-loading { text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px; }
+
     button, .btn { cursor: pointer; font-family: inherit; }
     button:active, .btn:active, .ri:active, .set-tile:active { transform: scale(0.96); transition: transform 0.1s; }
 
@@ -498,6 +520,12 @@
       <h1 id="greeting">Guten Morgen, <span class="accent-name">Samuel</span> 🌅</h1>
       <div class="sub" id="greeting-sub"></div>
       <div id="weather-widget" style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text-muted);"></div>
+    </div>
+
+    <!-- Health Data -->
+    <div class="section-title">Gesundheit Heute <span class="meta" id="health-date">—</span></div>
+    <div id="health-section">
+      <div class="health-loading">Lade Gesundheitsdaten…</div>
     </div>
 
     <!-- Supplement Tracker -->
@@ -1131,6 +1159,77 @@ async function dbRead(key) {
 }
 
 // ══════════════════════════════════════════════════════
+// APPLE HEALTH DATA
+// ══════════════════════════════════════════════════════
+async function loadHealthData() {
+  const section = document.getElementById('health-section');
+  const dateEl  = document.getElementById('health-date');
+  if (!section) return;
+
+  const c = getCfg();
+  if (!c.url || !c.key) {
+    section.innerHTML = `<div class="health-loading">Supabase nicht konfiguriert</div>`;
+    return;
+  }
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    const res = await fetch(
+      `${c.url}/rest/v1/health_data?select=*&order=date.desc&limit=2`,
+      { headers: { 'apikey': c.key, 'Authorization': `Bearer ${c.key}` } }
+    );
+    const rows = await res.json();
+    const data = rows && rows.length > 0 ? rows[0] : null;
+
+    if (!data) {
+      section.innerHTML = `
+        <div class="health-grid">
+          ${healthTile('hrv',   '💚', null, '', 'HRV', 'Noch kein Eintrag')}
+          ${healthTile('rhr',   '❤️', null, '', 'Herzfrequenz', 'Ruhepuls fehlt')}
+          ${healthTile('sleep', '🌙', null, '', 'Schlaf', 'Daten fehlen')}
+          ${healthTile('steps', '👟', null, '', 'Schritte', 'Daten fehlen')}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);text-align:center;padding:4px 0 8px;">
+          Shortcut noch nicht eingerichtet
+        </div>`;
+      return;
+    }
+
+    const label = data.date === today ? 'Heute' : data.date === yesterday ? 'Gestern' : data.date;
+    if (dateEl) dateEl.textContent = label;
+
+    const hrv = data.hrv_ms;
+    const hrvSub = !hrv ? 'Kein Wert' : hrv >= 60 ? '🟢 Erholt' : hrv >= 40 ? '🟡 Okay' : '🔴 Gestresst';
+    const sleep = data.sleep_hours;
+    const sleepSub = !sleep ? 'Kein Wert' : sleep >= 7.5 ? '🟢 Top' : sleep >= 6 ? '🟡 Okay' : '🔴 Zu wenig';
+
+    section.innerHTML = `
+      <div class="health-grid">
+        ${healthTile('hrv',   '💚', hrv ? Math.round(hrv) : null, hrv ? 'ms' : '', 'HRV', hrvSub)}
+        ${healthTile('rhr',   '❤️', data.rhr_bpm ? Math.round(data.rhr_bpm) : null, data.rhr_bpm ? 'bpm' : '', 'Ruhepuls', data.rhr_bpm ? `${Math.round(data.rhr_bpm)} BPM` : 'Kein Wert')}
+        ${healthTile('sleep', '🌙', sleep ? sleep.toFixed(1) : null, sleep ? 'h' : '', 'Schlaf', sleepSub)}
+        ${healthTile('steps', '👟', data.steps ? data.steps.toLocaleString('de-DE') : null, '', 'Schritte', data.steps ? (data.steps >= 8000 ? '🟢 Aktiv' : '🟡 Wenig') : 'Kein Wert')}
+      </div>`;
+  } catch (e) {
+    console.error('Health fetch error:', e);
+    section.innerHTML = `<div class="health-loading">Fehler beim Laden</div>`;
+  }
+}
+
+function healthTile(cls, icon, val, unit, label, sub) {
+  const noData = val === null || val === undefined;
+  return `
+    <div class="health-tile ${cls}${noData ? ' no-data' : ''}">
+      <div class="health-tile-icon">${icon}</div>
+      <div class="health-tile-val">${noData ? '—' : val}${!noData && unit ? `<span class="unit">${unit}</span>` : ''}</div>
+      <div class="health-tile-label">${label}</div>
+      <div class="health-tile-sub">${sub}</div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
 // NAV
 // ══════════════════════════════════════════════════════
 function switchTab(tab) {
@@ -1138,7 +1237,7 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
   document.querySelector(`.nav-btn[data-tab="${tab}"]`).classList.add('active');
-  if (tab === 'morgen') { renderTodos(); renderHeatmap(); }
+  if (tab === 'morgen') { renderTodos(); renderHeatmap(); loadHealthData(); }
   if (tab === 'plan') renderPlan();
   if (tab === 'abend') initSliders();
   if (tab === 'workout') {
@@ -2524,6 +2623,7 @@ async function init() {
   setInterval(renderBedtimeRing, 60000);
 
   renderSupps();
+  loadHealthData();
 
   renderWorkoutHistory();
 
