@@ -133,7 +133,6 @@
     .ht-energy::before { background: linear-gradient(90deg, #f97316, #fb923c); }
     .ht-resp::before   { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
     .ht-move::before   { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
-    .ht-temp::before   { background: linear-gradient(90deg, #ec4899, #f472b6); }
     .ht-spo2::before   { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
     .htsm-icon  { font-size: 14px; }
     .htsm-val   { font-size: 18px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; line-height: 1; }
@@ -1237,7 +1236,7 @@ async function dbRead(key) {
 // GESUNDHEIT TAB
 // ══════════════════════════════════════════════════════
 function healthTileSmall(cls, icon, val, unit, label, sub) {
-  const noData = val === null || val === undefined;
+  const noData = val === null || val === undefined || (val === 0 && cls !== 'steps');
   return `
     <div class="health-tile-sm ht-${cls}${noData ? ' htsm-nodata' : ''}">
       <div class="htsm-icon">${icon}</div>
@@ -1294,8 +1293,6 @@ async function loadGesundheitTab() {
           !data.respiratory_rate ? 'Kein Wert' : data.respiratory_rate >= 12 && data.respiratory_rate <= 20 ? '🟢 Normal' : '🟡 Check')}
         ${healthTileSmall('move',  '⚡', data.exercise_minutes ? Math.round(data.exercise_minutes) : null, 'min', 'Bewegung',
           !data.exercise_minutes ? 'Kein Wert' : data.exercise_minutes >= 30 ? '🟢 Top' : '🟡 Wenig')}
-        ${healthTileSmall('temp',  '🌡️', data.wrist_temperature ? data.wrist_temperature.toFixed(1) : null, '°C', 'Körpertemp.',
-          !data.wrist_temperature ? 'Kein Wert' : Math.abs(data.wrist_temperature) <= 0.5 ? '🟢 Normal' : '🟡 Abweichung')}
         ${healthTileSmall('spo2',  '💨', data.spo2 ? Math.round(data.spo2) : null, '%', 'SpO₂',
           !data.spo2 ? 'Kein Wert' : data.spo2 >= 95 ? '🟢 Gut' : data.spo2 >= 90 ? '🟡 Okay' : '🔴 Niedrig')}
       `;
