@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#0a0a0c">
   <link rel="manifest" href="manifest.json">
   <title>Samuel Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     /* ── STEEL DESIGN v3 ── */
     :root {
@@ -115,6 +116,52 @@
     .health-tile-sub { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
     .health-tile.no-data .health-tile-val { font-size: 13px; color: var(--text-muted); font-weight: 500; letter-spacing: 0; }
     .health-loading { text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px; }
+
+    /* ── Gesundheit Tab ── */
+    .health-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 8px; }
+    .health-tile-sm {
+      background: var(--card); background-image: var(--shine);
+      border: 1px solid var(--card-border); border-radius: 13px;
+      padding: 11px 10px; display: flex; flex-direction: column; gap: 3px;
+      position: relative; overflow: hidden;
+    }
+    .health-tile-sm::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 13px 13px 0 0; }
+    .ht-hrv::before    { background: linear-gradient(90deg, #10b981, #34d399); }
+    .ht-rhr::before    { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .ht-sleep::before  { background: linear-gradient(90deg, #6366f1, #818cf8); }
+    .ht-steps::before  { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .ht-energy::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+    .ht-resp::before   { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+    .ht-move::before   { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+    .ht-temp::before   { background: linear-gradient(90deg, #ec4899, #f472b6); }
+    .ht-spo2::before   { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .htsm-icon  { font-size: 14px; }
+    .htsm-val   { font-size: 18px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; line-height: 1; }
+    .htsm-val .unit { font-size: 9px; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
+    .htsm-label { font-size: 9px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+    .htsm-sub   { font-size: 9px; color: var(--text-muted); margin-top: 1px; }
+    .htsm-nodata .htsm-val { font-size: 12px; color: var(--text-muted); font-weight: 500; letter-spacing: 0; }
+    /* Sleep Breakdown */
+    .sleep-breakdown { background: var(--card); background-image: var(--shine); border: 1px solid var(--card-border); border-radius: 13px; padding: 13px 14px; margin-bottom: 8px; }
+    .sleep-bar-wrap { height: 10px; border-radius: 5px; overflow: hidden; display: flex; gap: 2px; margin: 8px 0; background: rgba(255,255,255,0.04); }
+    .sleep-seg { height: 100%; border-radius: 5px; transition: width 0.8s ease; }
+    .sleep-seg.deep  { background: #6366f1; }
+    .sleep-seg.rem   { background: #8b5cf6; }
+    .sleep-seg.light { background: #94a3b8; }
+    .sleep-legend { display: flex; gap: 12px; flex-wrap: wrap; }
+    .sleep-leg-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-muted); }
+    .sleep-leg-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    /* HR Chart */
+    .hr-chart-wrap { background: var(--card); background-image: var(--shine); border: 1px solid var(--card-border); border-radius: 13px; padding: 13px 14px; margin-bottom: 8px; }
+    .hr-chart-canvas { width: 100% !important; height: 140px !important; }
+    /* 7-Tage Trend */
+    .trend-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 8px; }
+    .trend-card { background: var(--card); background-image: var(--shine); border: 1px solid var(--card-border); border-radius: 13px; padding: 11px 10px 8px; }
+    .trend-label { font-size: 9px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+    .trend-val   { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+    .trend-val .unit { font-size: 9px; font-weight: 500; color: var(--text-muted); }
+    .trend-dir   { font-size: 10px; margin-top: 2px; }
+    .trend-spark { width: 100%; height: 36px; margin-top: 4px; }
 
     button, .btn { cursor: pointer; font-family: inherit; }
     button:active, .btn:active, .ri:active, .set-tile:active { transform: scale(0.96); transition: transform 0.1s; }
@@ -365,11 +412,12 @@
       padding-bottom: var(--safe-b);
       display: flex;
     }
-    .nav-btn { flex: 1; background: none; border: none; padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-muted); font-size: 9px; font-weight: 500; letter-spacing: 0.2px; position: relative; cursor: pointer; }
-    .nav-btn .ni { font-size: 19px; line-height: 1; }
-    .nav-btn.active { color: var(--accent); font-weight: 700; }
-    .nav-btn.active .ni { filter: drop-shadow(0 0 6px var(--accent-solid)); }
-    .nav-btn.active::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 22px; height: 2px; border-radius: 2px; background: var(--accent-solid); box-shadow: 0 0 8px var(--accent-solid); }
+    .nav-btn { flex: 1; background: none; border: none; padding: 8px 2px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--text-muted); position: relative; cursor: pointer; transition: color 0.2s ease; }
+    .nav-icon { font-size: 16px; line-height: 1; }
+    .nav-lbl  { font-size: 8px; letter-spacing: 0.04em; }
+    .nav-btn.active { color: var(--accent); }
+    .nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px rgba(190,195,215,0.5)); }
+    .nav-btn.active::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 20px; height: 2px; border-radius: 2px; background: var(--accent-solid); box-shadow: 0 0 8px var(--accent-solid); }
 
     /* ── Timer (preserved) ── */
     .ri-timer-area { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--card-border); }
@@ -436,8 +484,9 @@
       #app { max-width: 1200px; height: auto; min-height: 100vh; display: grid; grid-template-columns: 220px 1fr 300px; grid-template-rows: auto 1fr; }
       #quote-banner { grid-column: 1 / -1; display: block; }
       #bottom-nav { grid-column: 1; grid-row: 2/3; flex-direction: column; border-top: none; border-right: 1px solid var(--card-border); padding: 16px 8px; align-items: stretch; height: auto; position: sticky; top: 0; align-self: start; }
-      .nav-btn { flex-direction: row; justify-content: flex-start; gap: 10px; padding: 12px 16px; font-size: 13px; border-radius: 10px; }
-      .nav-btn .ni { font-size: 18px; }
+      .nav-btn { flex-direction: row; justify-content: flex-start; gap: 10px; padding: 12px 16px; border-radius: 10px; }
+      .nav-icon { font-size: 18px; }
+      .nav-lbl  { font-size: 13px; letter-spacing: 0.02em; }
       .nav-btn.active::after { display: none; }
       .nav-btn.active { background: var(--accent-soft); border-radius: 10px; }
       #tab-container { grid-column: 2; grid-row: 2; overflow-y: auto; max-height: 100vh; }
@@ -494,8 +543,37 @@
 
   <div id="tab-container">
 
+  <!-- ════════════════ GESUNDHEIT ════════════════ -->
+  <div id="tab-gesundheit" class="tab-view active">
+    <div class="greeting">
+      <h1>Gesundheit</h1>
+      <div class="sub" id="health-tab-date">—</div>
+    </div>
+
+    <div class="section-title">Heutige Werte</div>
+    <div class="health-grid-3" id="health-tiles-wrap">
+      <div class="health-loading" style="grid-column:span 3;">Lade…</div>
+    </div>
+
+    <div class="section-title">Schlafphasen</div>
+    <div class="sleep-breakdown" id="sleep-breakdown-wrap">
+      <div class="health-loading">Lade…</div>
+    </div>
+
+    <div class="section-title">Herzfrequenz — 24h</div>
+    <div class="hr-chart-wrap">
+      <canvas id="hr-chart" class="hr-chart-canvas"></canvas>
+      <div id="hr-chart-empty" style="display:none;text-align:center;padding:30px;font-size:12px;color:var(--text-muted);">Noch keine HR-Daten für heute</div>
+    </div>
+
+    <div class="section-title">7-Tage Trends</div>
+    <div class="trend-grid" id="trend-wrap">
+      <div class="health-loading" style="grid-column:span 3;">Lade…</div>
+    </div>
+  </div>
+
   <!-- ════════════════ MORGEN ════════════════ -->
-  <div id="tab-morgen" class="tab-view active">
+  <div id="tab-morgen" class="tab-view">
 
     <!-- Bedtime Ring -->
     <div id="bedtime-ring-wrap">
@@ -520,12 +598,6 @@
       <h1 id="greeting">Guten Morgen, <span class="accent-name">Samuel</span> 🌅</h1>
       <div class="sub" id="greeting-sub"></div>
       <div id="weather-widget" style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text-muted);"></div>
-    </div>
-
-    <!-- Health Data -->
-    <div class="section-title">Gesundheit Heute <span class="meta" id="health-date">—</span></div>
-    <div id="health-section">
-      <div class="health-loading">Lade Gesundheitsdaten…</div>
     </div>
 
     <!-- Supplement Tracker -->
@@ -837,23 +909,26 @@ CREATE POLICY "allow_all" ON app_state
 
   <!-- ════════════════ BOTTOM NAV ════════════════ -->
   <nav id="bottom-nav">
-    <button class="nav-btn active" data-tab="morgen" onclick="switchTab('morgen')">
-      <span class="ni">🌅</span><span>Morgen</span>
+    <button class="nav-btn active" data-tab="gesundheit" onclick="switchTab('gesundheit')">
+      <span class="nav-icon">🏃</span><span class="nav-lbl">Health</span>
+    </button>
+    <button class="nav-btn" data-tab="morgen" onclick="switchTab('morgen')">
+      <span class="nav-icon">☀️</span><span class="nav-lbl">Morgen</span>
     </button>
     <button class="nav-btn" data-tab="workout" onclick="switchTab('workout')">
-      <span class="ni">💪</span><span>Training</span>
+      <span class="nav-icon">💪</span><span class="nav-lbl">Workout</span>
     </button>
     <button class="nav-btn" data-tab="75hard" onclick="switchTab('75hard')">
-      <span class="ni">🎯</span><span>75Hard</span>
+      <span class="nav-icon">🔥</span><span class="nav-lbl">75Hard</span>
     </button>
     <button class="nav-btn" data-tab="abend" onclick="switchTab('abend')">
-      <span class="ni">🌙</span><span>Abend</span>
+      <span class="nav-icon">🌙</span><span class="nav-lbl">Abend</span>
     </button>
     <button class="nav-btn" data-tab="plan" onclick="switchTab('plan')">
-      <span class="ni">📋</span><span>Plan</span>
+      <span class="nav-icon">📅</span><span class="nav-lbl">Plan</span>
     </button>
     <button class="nav-btn" data-tab="settings" onclick="switchTab('settings')">
-      <span class="ni">⚙️</span><span>Settings</span>
+      <span class="nav-icon">⚙️</span><span class="nav-lbl">Settings</span>
     </button>
   </nav>
 
@@ -1159,7 +1234,232 @@ async function dbRead(key) {
 }
 
 // ══════════════════════════════════════════════════════
-// APPLE HEALTH DATA
+// GESUNDHEIT TAB
+// ══════════════════════════════════════════════════════
+function healthTileSmall(cls, icon, val, unit, label, sub) {
+  const noData = val === null || val === undefined;
+  return `
+    <div class="health-tile-sm ht-${cls}${noData ? ' htsm-nodata' : ''}">
+      <div class="htsm-icon">${icon}</div>
+      <div class="htsm-val">${noData ? '—' : val}${!noData && unit ? `<span class="unit">${unit}</span>` : ''}</div>
+      <div class="htsm-label">${label}</div>
+      <div class="htsm-sub">${sub}</div>
+    </div>`;
+}
+
+let hrChartInstance = null;
+
+async function loadGesundheitTab() {
+  const tilesWrap = document.getElementById('health-tiles-wrap');
+  const sleepWrap = document.getElementById('sleep-breakdown-wrap');
+  const trendWrap = document.getElementById('trend-wrap');
+  const dateEl    = document.getElementById('health-tab-date');
+
+  const c = getCfg();
+  if (!c.url || !c.key) {
+    if (tilesWrap) tilesWrap.innerHTML = `<div class="health-loading" style="grid-column:span 3;">Supabase nicht konfiguriert</div>`;
+    return;
+  }
+
+  try {
+    const today     = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    const res = await fetch(
+      `${c.url}/rest/v1/health_data?select=*&order=date.desc&limit=7`,
+      { headers: { 'apikey': c.key, 'Authorization': `Bearer ${c.key}` } }
+    );
+    const rows = await res.json();
+    const data = rows && rows.length > 0 ? rows[0] : null;
+
+    if (data) {
+      const label = data.date === today ? 'Heute' : data.date === yesterday ? 'Gestern' : data.date;
+      if (dateEl) dateEl.textContent = label;
+
+      const hrv   = data.hrv_ms;
+      const sleep = data.sleep_minutes;
+
+      tilesWrap.innerHTML = `
+        ${healthTileSmall('hrv',   '💚', hrv   ? Math.round(hrv)   : null, 'ms',   'HRV',
+          !hrv ? 'Kein Wert' : hrv >= 60 ? '🟢 Erholt' : hrv >= 40 ? '🟡 Okay' : '🔴 Gestresst')}
+        ${healthTileSmall('rhr',   '❤️', data.rhr_bpm ? Math.round(data.rhr_bpm) : null, 'bpm',  'Ruhepuls',
+          !data.rhr_bpm ? 'Kein Wert' : data.rhr_bpm <= 60 ? '🟢 Top' : data.rhr_bpm <= 75 ? '🟡 Okay' : '🔴 Erhöht')}
+        ${healthTileSmall('sleep', '🌙', sleep ? (sleep/60).toFixed(1) : null, 'h', 'Schlaf',
+          !sleep ? 'Kein Wert' : (sleep/60) >= 7.5 ? '🟢 Top' : (sleep/60) >= 6 ? '🟡 Okay' : '🔴 Wenig')}
+        ${healthTileSmall('steps', '👟', data.steps ? data.steps.toLocaleString('de-DE') : null, '', 'Schritte',
+          !data.steps ? 'Kein Wert' : data.steps >= 8000 ? '🟢 Aktiv' : '🟡 Wenig')}
+        ${healthTileSmall('energy','🔥', data.active_energy ? Math.round(data.active_energy) : null, 'kcal', 'Aktiv Kal.',
+          !data.active_energy ? 'Kein Wert' : data.active_energy >= 400 ? '🟢 Top' : '🟡 Okay')}
+        ${healthTileSmall('resp',  '🫁', data.respiratory_rate ? data.respiratory_rate.toFixed(1) : null, '/min', 'Atemfreq.',
+          !data.respiratory_rate ? 'Kein Wert' : data.respiratory_rate >= 12 && data.respiratory_rate <= 20 ? '🟢 Normal' : '🟡 Check')}
+        ${healthTileSmall('move',  '⚡', data.exercise_minutes ? Math.round(data.exercise_minutes) : null, 'min', 'Bewegung',
+          !data.exercise_minutes ? 'Kein Wert' : data.exercise_minutes >= 30 ? '🟢 Top' : '🟡 Wenig')}
+        ${healthTileSmall('temp',  '🌡️', data.wrist_temperature ? data.wrist_temperature.toFixed(1) : null, '°C', 'Körpertemp.',
+          !data.wrist_temperature ? 'Kein Wert' : Math.abs(data.wrist_temperature) <= 0.5 ? '🟢 Normal' : '🟡 Abweichung')}
+        ${healthTileSmall('spo2',  '💨', data.spo2 ? Math.round(data.spo2) : null, '%', 'SpO₂',
+          !data.spo2 ? 'Kein Wert' : data.spo2 >= 95 ? '🟢 Gut' : data.spo2 >= 90 ? '🟡 Okay' : '🔴 Niedrig')}
+      `;
+
+      // Sleep Breakdown
+      const deep  = data.sleep_deep_minutes  || 0;
+      const rem   = data.sleep_rem_minutes   || 0;
+      const light = data.sleep_light_minutes || 0;
+      const total = deep + rem + light || sleep || 1;
+      if (deep || rem || light) {
+        const deepPct  = ((deep  / total) * 100).toFixed(0);
+        const remPct   = ((rem   / total) * 100).toFixed(0);
+        const lightPct = ((light / total) * 100).toFixed(0);
+        sleepWrap.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+            <div style="font-size:13px;font-weight:700;color:var(--text);">${sleep ? (sleep/60).toFixed(1) + ' h gesamt' : '—'}</div>
+            ${data.sleep_score ? `<div style="font-size:11px;color:var(--text-muted);">Score: <span style="color:var(--accent);font-weight:700;">${Math.round(data.sleep_score)}</span></div>` : ''}
+          </div>
+          <div class="sleep-bar-wrap">
+            <div class="sleep-seg deep"  style="width:${deepPct}%"></div>
+            <div class="sleep-seg rem"   style="width:${remPct}%"></div>
+            <div class="sleep-seg light" style="width:${lightPct}%"></div>
+          </div>
+          <div class="sleep-legend">
+            <div class="sleep-leg-item"><div class="sleep-leg-dot" style="background:#6366f1"></div>Tief ${Math.round(deep)}min</div>
+            <div class="sleep-leg-item"><div class="sleep-leg-dot" style="background:#8b5cf6"></div>REM ${Math.round(rem)}min</div>
+            <div class="sleep-leg-item"><div class="sleep-leg-dot" style="background:#94a3b8"></div>Leicht ${Math.round(light)}min</div>
+          </div>`;
+      } else {
+        sleepWrap.innerHTML = `<div class="health-loading">Schlafphasen noch nicht verfügbar</div>`;
+      }
+
+      // 7-Tage Trends
+      if (rows.length >= 2) {
+        const last7hrv   = rows.map(r => r.hrv_ms          ? Math.round(r.hrv_ms)         : null).reverse();
+        const last7rhr   = rows.map(r => r.rhr_bpm         ? Math.round(r.rhr_bpm)        : null).reverse();
+        const last7sleep = rows.map(r => r.sleep_minutes    ? +(r.sleep_minutes/60).toFixed(1) : null).reverse();
+
+        const sparkSVG = (vals, color) => {
+          const valid = vals.filter(v => v !== null);
+          if (valid.length < 2) return '<div style="height:36px;"></div>';
+          const lo = Math.min(...valid), hi = Math.max(...valid);
+          const range = hi - lo || 1;
+          const w = 100, h = 36, pad = 4;
+          const pts = vals.map((v, i) => {
+            if (v === null) return null;
+            const x = pad + (i / (vals.length - 1)) * (w - pad*2);
+            const y = h - pad - ((v - lo) / range) * (h - pad*2);
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+          }).filter(Boolean).join(' ');
+          return `<svg viewBox="0 0 ${w} ${h}" class="trend-spark" preserveAspectRatio="none">
+            <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+          </svg>`;
+        };
+
+        const trendDir = (vals) => {
+          const v = vals.filter(v => v !== null);
+          if (v.length < 2) return '→';
+          const diff = v[v.length-1] - v[0];
+          return diff > 0.5 ? '↑' : diff < -0.5 ? '↓' : '→';
+        };
+
+        trendWrap.innerHTML = `
+          <div class="trend-card">
+            <div class="trend-label">HRV (7 Tage)</div>
+            <div class="trend-val">${last7hrv[last7hrv.length-1] ?? '—'}<span class="unit"> ms</span></div>
+            <div class="trend-dir" style="color:${trendDir(last7hrv)==='↑'?'#10b981':trendDir(last7hrv)==='↓'?'#ef4444':'#94a3b8'}">${trendDir(last7hrv)}</div>
+            ${sparkSVG(last7hrv, '#10b981')}
+          </div>
+          <div class="trend-card">
+            <div class="trend-label">Ruhepuls (7T)</div>
+            <div class="trend-val">${last7rhr[last7rhr.length-1] ?? '—'}<span class="unit"> bpm</span></div>
+            <div class="trend-dir" style="color:${trendDir(last7rhr)==='↓'?'#10b981':trendDir(last7rhr)==='↑'?'#ef4444':'#94a3b8'}">${trendDir(last7rhr)}</div>
+            ${sparkSVG(last7rhr, '#ef4444')}
+          </div>
+          <div class="trend-card">
+            <div class="trend-label">Schlaf (7T)</div>
+            <div class="trend-val">${last7sleep[last7sleep.length-1] ?? '—'}<span class="unit"> h</span></div>
+            <div class="trend-dir" style="color:${trendDir(last7sleep)==='↑'?'#10b981':trendDir(last7sleep)==='↓'?'#ef4444':'#94a3b8'}">${trendDir(last7sleep)}</div>
+            ${sparkSVG(last7sleep, '#6366f1')}
+          </div>`;
+      } else {
+        trendWrap.innerHTML = `<div class="health-loading" style="grid-column:span 3;">Noch nicht genug Daten (min. 2 Tage)</div>`;
+      }
+    } else {
+      if (tilesWrap) tilesWrap.innerHTML = `<div class="health-loading" style="grid-column:span 3;">Noch keine Gesundheitsdaten — Shortcut einrichten</div>`;
+      if (sleepWrap) sleepWrap.innerHTML = `<div class="health-loading">—</div>`;
+      if (trendWrap) trendWrap.innerHTML = `<div class="health-loading" style="grid-column:span 3;">—</div>`;
+    }
+
+    // 24h HR Chart
+    await loadHRChart(today, c);
+
+  } catch (e) {
+    console.error('Gesundheit Tab error:', e);
+    if (tilesWrap) tilesWrap.innerHTML = `<div class="health-loading" style="grid-column:span 3;">Fehler beim Laden</div>`;
+  }
+}
+
+async function loadHRChart(date, c) {
+  const canvas  = document.getElementById('hr-chart');
+  const emptyEl = document.getElementById('hr-chart-empty');
+  if (!canvas) return;
+
+  try {
+    const res = await fetch(
+      `${c.url}/rest/v1/heart_rate_timeline?select=hour,avg_bpm&date=eq.${date}&order=hour.asc`,
+      { headers: { 'apikey': c.key, 'Authorization': `Bearer ${c.key}` } }
+    );
+    const hrData = await res.json();
+
+    if (!hrData || hrData.length === 0) {
+      canvas.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+
+    canvas.style.display = 'block';
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    // 24-Stunden-Array, fehlende Stunden = null
+    const hourData = Array(24).fill(null);
+    hrData.forEach(h => { hourData[h.hour] = h.avg_bpm; });
+    const labels = Array.from({length: 24}, (_, i) => i % 6 === 0 ? `${i}:00` : '');
+
+    if (hrChartInstance) { hrChartInstance.destroy(); hrChartInstance = null; }
+
+    hrChartInstance = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: hourData,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239,68,68,0.07)',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          spanGaps: true,
+          fill: true,
+          tension: 0.4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${Math.round(ctx.raw)} bpm` } }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(190,195,215,0.06)' }, ticks: { color: '#6b7280', font: { size: 9 } } },
+          y: { grid: { color: 'rgba(190,195,215,0.06)' }, ticks: { color: '#6b7280', font: { size: 9 } }, beginAtZero: false }
+        }
+      }
+    });
+  } catch(e) {
+    console.error('HR chart error:', e);
+    canvas.style.display = 'none';
+    if (emptyEl) { emptyEl.textContent = 'Fehler beim Laden'; emptyEl.style.display = 'block'; }
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// APPLE HEALTH DATA (Morgen-Tab — Legacy, nicht mehr aktiv)
 // ══════════════════════════════════════════════════════
 async function loadHealthData() {
   const section = document.getElementById('health-section');
@@ -1252,7 +1552,8 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
   document.querySelector(`.nav-btn[data-tab="${tab}"]`).classList.add('active');
-  if (tab === 'morgen') { renderTodos(); renderHeatmap(); loadHealthData(); }
+  if (tab === 'gesundheit') loadGesundheitTab();
+  if (tab === 'morgen') { renderTodos(); renderHeatmap(); }
   if (tab === 'plan') renderPlan();
   if (tab === 'abend') initSliders();
   if (tab === 'workout') {
@@ -2638,7 +2939,7 @@ async function init() {
   setInterval(renderBedtimeRing, 60000);
 
   renderSupps();
-  loadHealthData();
+  loadGesundheitTab();
 
   renderWorkoutHistory();
 
