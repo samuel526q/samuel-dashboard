@@ -467,6 +467,8 @@
     .nav-btn.active { color: var(--accent); }
     .nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px rgba(190,195,215,0.5)); }
     .nav-btn.active::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 20px; height: 2px; border-radius: 2px; background: var(--accent-solid); box-shadow: 0 0 8px var(--accent-solid); }
+    .sync-err-dot { position: absolute; top: 6px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); display: none; box-shadow: 0 0 6px var(--red); }
+    .sync-err-dot.visible { display: block; }
 
     /* ── Timer (preserved) ── */
     .ri-timer-area { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--card-border); }
@@ -1071,7 +1073,7 @@ CREATE POLICY "allow_all" ON app_state
       <span class="nav-icon">📅</span><span class="nav-lbl">Plan</span>
     </button>
     <button class="nav-btn" data-tab="settings" onclick="switchTab('settings')">
-      <span class="nav-icon">⚙️</span><span class="nav-lbl">Settings</span>
+      <span class="nav-icon">⚙️</span><span class="nav-lbl">Settings</span><span class="sync-err-dot" id="sync-err-dot"></span>
     </button>
   </nav>
 
@@ -1349,17 +1351,54 @@ function checkMorningComplete() {
 // ══════════════════════════════════════════════════════
 const getCfg = () => ({url: localStorage.getItem('sb_url')||'', key: localStorage.getItem('sb_key')||''});
 
+function setSyncError(hasError) {
+  const dot = document.getElementById('sync-err-dot');
+  if (dot) dot.classList.toggle('visible', hasError);
+}
+
+async function _supabaseUpsert(c, key, value) {
+  await fetch(`${c.url}/rest/v1/app_state`, {
+    method:'POST',
+    headers:{'apikey':c.key,'Authorization':`Bearer ${c.key}`,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+    body: JSON.stringify({key, value, updated_at: new Date().toISOString()})
+  });
+}
+
+async function flushPendingSync() {
+  const c = getCfg();
+  if (!c.url || !c.key) return;
+  const pending = JSON.parse(localStorage.getItem('_pending_sync') || '[]');
+  if (!pending.length) return;
+  const remaining = [];
+  for (const item of pending) {
+    try { await _supabaseUpsert(c, item.key, item.value); }
+    catch(e) { remaining.push(item); }
+  }
+  localStorage.setItem('_pending_sync', JSON.stringify(remaining));
+  setSyncError(remaining.length > 0);
+}
+
 async function upsert(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
   const c = getCfg();
   if (!c.url || !c.key) return;
   try {
-    await fetch(`${c.url}/rest/v1/app_state`, {
-      method:'POST',
-      headers:{'apikey':c.key,'Authorization':`Bearer ${c.key}`,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
-      body: JSON.stringify({key, value, updated_at: new Date().toISOString()})
-    });
-  } catch(e){}
+    await _supabaseUpsert(c, key, value);
+    // clear this key from pending queue if it was there
+    const pending = JSON.parse(localStorage.getItem('_pending_sync') || '[]');
+    const filtered = pending.filter(p => p.key !== key);
+    if (filtered.length !== pending.length) {
+      localStorage.setItem('_pending_sync', JSON.stringify(filtered));
+      setSyncError(filtered.length > 0);
+    }
+  } catch(e) {
+    const pending = JSON.parse(localStorage.getItem('_pending_sync') || '[]');
+    const idx = pending.findIndex(p => p.key === key);
+    if (idx >= 0) pending[idx] = {key, value};
+    else pending.push({key, value});
+    localStorage.setItem('_pending_sync', JSON.stringify(pending.slice(-50)));
+    setSyncError(true);
+  }
 }
 
 async function dbRead(key) {
@@ -2600,8 +2639,8 @@ document.getElementById('wo-finish-btn').onclick = async () => {
   }
 
   const sessionSnapshot = JSON.parse(JSON.stringify(S.wo_session));
-  S.wo_session = {};
   await upsert(`wo_session_${TODAY}`, { ...sessionSnapshot, done:true, ts: new Date().toISOString() });
+  S.wo_session = {};
   playSound('milestone'); renderWorkout();
 };
 
@@ -3224,6 +3263,7 @@ function renderWorkoutHistory() {
 // INIT
 // ══════════════════════════════════════════════════════
 async function init() {
+  flushPendingSync(); // re-sync failed writes from previous sessions (fire-and-forget)
   const lastDay = localStorage.getItem('_last_day');
   if (lastDay && lastDay !== TODAY) {
     Object.keys(TS).forEach(k => {
