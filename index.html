@@ -1537,7 +1537,7 @@ function renderSleep(d) {
   const tracked = deep + rem + light;
   const total   = d.sleep_minutes;
   const hrs     = Math.floor(total / 60);
-  const mins    = total % 60;
+  const mins    = Math.round(total % 60);
   if (bedtimeEl) bedtimeEl.textContent = d.bedtime ? `Bett ${d.bedtime}` : '';
   const head = `
     <div class="sleep-head">
@@ -2566,8 +2566,42 @@ document.getElementById('wo-finish-btn').onclick = async () => {
   localStorage.setItem('wo_last_date', TODAY);
   await upsert('wo_last', S.wo_last); await upsert('wo_current', S.wo_current);
   saveWorkoutToHistory(S.wo_session, split);
+
+  // ── Update wo_plan with actually used weights ──
+  if (WP && WP[split]) {
+    let planUpdated = false;
+    exs.forEach(ex => {
+      if (ex.bw) return; // bodyweight — kein Gewicht zu updaten
+      const logged = (ex.sets||[]).filter(s => s != null && !s.bw && s.kg > 0);
+      if (!logged.length) return;
+      const maxKg = Math.max(...logged.map(s => s.kg));
+      const planEx = WP[split].find(p => p.id === ex.planId);
+      if (planEx && maxKg !== planEx.kg) {
+        planEx.kg = maxKg;
+        planUpdated = true;
+      }
+    });
+    if (planUpdated) await upsert('wo_plan', WP);
+  }
+
+  // ── Save notes for Claude coaching review ──
+  const notesForReview = [];
+  exs.forEach(ex => {
+    if (ex.note && ex.note.trim()) {
+      notesForReview.push({ date: TODAY, split, exercise: ex.name, note: ex.note.trim() });
+    }
+  });
+  if (S.wo_session.sessionNote && S.wo_session.sessionNote.trim()) {
+    notesForReview.push({ date: TODAY, split, exercise: 'SESSION', note: S.wo_session.sessionNote.trim() });
+  }
+  if (notesForReview.length) {
+    const existing = await dbRead('wo_unreviewed_notes') || [];
+    await upsert('wo_unreviewed_notes', [...existing, ...notesForReview]);
+  }
+
+  const sessionSnapshot = JSON.parse(JSON.stringify(S.wo_session));
   S.wo_session = {};
-  await upsert(`wo_session_${TODAY}`, { done:true, split, ts: new Date().toISOString() });
+  await upsert(`wo_session_${TODAY}`, { ...sessionSnapshot, done:true, ts: new Date().toISOString() });
   playSound('milestone'); renderWorkout();
 };
 
