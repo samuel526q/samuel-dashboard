@@ -586,6 +586,19 @@
     .wo-hist-bar { height: 100%; border-radius: 3px; background: var(--accent); transition: width .5s ease; }
     .wo-hist-bar.green { background: var(--green); }
     .wo-hist-val { font-size: 10px; color: var(--text-muted); min-width: 38px; text-align: right; }
+  /* ═══ JARVIS Stufe 1 ═══ */
+  #jarvis-fab{position:fixed;right:16px;bottom:calc(72px + var(--safe-b));z-index:90;width:52px;height:52px;border:none;border-radius:50%;font-size:22px;cursor:pointer;background:radial-gradient(circle at 35% 30%,#eef1ff,#aab4d8 40%,#5a6486 75%,#2a2e3e);box-shadow:0 0 22px rgba(170,180,216,0.4);}
+  #jarvis-panel{position:fixed;right:14px;bottom:calc(132px + var(--safe-b));z-index:90;width:min(360px,92vw);max-height:64vh;display:none;flex-direction:column;background:var(--card);border:1px solid var(--card-border);border-radius:16px;overflow:hidden;backdrop-filter:blur(12px);}
+  #jarvis-panel.open{display:flex;}
+  #jarvis-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--card-border);font-weight:700;color:var(--text);}
+  #jarvis-head span{flex:1;}
+  .jarvis-mini{background:var(--accent-soft,rgba(190,195,215,0.08));border:1px solid var(--card-border);color:var(--text);border-radius:8px;padding:4px 9px;font-size:12px;cursor:pointer;}
+  #jarvis-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
+  .jmsg{font-size:14px;line-height:1.45;padding:8px 11px;border-radius:12px;max-width:85%;}
+  .jmsg.user{align-self:flex-end;background:var(--accent-soft,rgba(190,195,215,0.1));color:var(--text);}
+  .jmsg.jarvis{align-self:flex-start;background:rgba(122,162,255,0.10);color:var(--text);}
+  #jarvis-input{display:flex;gap:6px;padding:10px;border-top:1px solid var(--card-border);}
+  #jarvis-text{flex:1;background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 10px;font-size:14px;}
   </style>
 </head>
 <body>
@@ -3359,6 +3372,160 @@ async function init() {
 }
 
 init();
+
+// ═══ JARVIS Stufe 1 ═══
+let jarvisVoiceOn = false;
+let jarvisHistory = [];
+
+function jarvisToggle(){ document.getElementById('jarvis-panel').classList.toggle('open'); }
+
+function jarvisSystemPrompt(){
+  return `Du bist Jarvis, Samuels persönlicher Assistent in seiner Dashboard-App. Antworte auf Deutsch, kurz und direkt, kein Geschwafel.
+Ton: Motivational Bro — ehrlich, reflektiert, anfeuernd, kein Kitsch. Du willst, dass Samuel alles schafft.
+Über Samuel: 21, aus Neuburg, ADHS. Kreuzbandriss im Januar -> trainiert NUR Oberkörper (Pull/Push). Baut Morgenroutine + Gym auf, lebt 75Hard-artig. Will unabhängiger werden.
+Du kennst seine Live-Daten (unten). Beziehe dich konkret darauf. Wenn er etwas erledigen/merken will, nutze das Tool add_todo. Erfinde keine Daten.`;
+}
+
+function gatherJarvisContext(){
+  const today = TODAY;
+  const todos = (S.all_todos||[]).filter(t=>t.status==='pending').map(t=>`- ${t.text} (${t.date})`).join('\n') || 'keine offenen';
+  const streak = localStorage.getItem('gym_streak') || '?';
+  const woCur = localStorage.getItem('wo_current') || '?';
+  return `Datum heute: ${today}\nGym-Streak: ${streak}\nNächstes/aktuelles Workout: ${woCur}\nOffene To-Dos:\n${todos}`;
+}
+
+const JARVIS_TOOLS = [{
+  type:"function",
+  function:{
+    name:"add_todo",
+    description:"Fügt ein To-Do zu Samuels Liste hinzu, wenn er etwas erledigen oder sich merken will.",
+    parameters:{ type:"object", properties:{
+      text:{type:"string", description:"Die Aufgabe"},
+      date:{type:"string", description:"Datum YYYY-MM-DD, Standard heute"}
+    }, required:["text"] }
+  }
+}];
+
+function jarvisAddTodo(text, date){
+  if(!S.all_todos) S.all_todos = [];
+  S.all_todos.push({ id:`todo_${Date.now()}`, text, date: date||TODAY, status:'pending', source:'jarvis' });
+  upsert('all_todos', S.all_todos);
+  if(typeof renderTodos === 'function') renderTodos();
+  return `To-Do gespeichert: ${text} (${date||TODAY})`;
+}
+
+function jarvisPushMsg(who, text){
+  const box = document.getElementById('jarvis-msgs');
+  const d = document.createElement('div');
+  d.className = 'jmsg ' + (who==='user'?'user':'jarvis');
+  d.textContent = text;
+  box.appendChild(d); box.scrollTop = box.scrollHeight;
+}
+
+async function jarvisCall(payload){
+  const c = getCfg();
+  const res = await fetch(`${c.url}/functions/v1/jarvis`, {
+    method:'POST',
+    headers:{ apikey:c.key, Authorization:`Bearer ${c.key}`, 'Content-Type':'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res;
+}
+
+async function jarvisAsk(userText){
+  const c = getCfg();
+  if(!c.url || !c.key) return 'Supabase ist nicht verbunden (Settings-Tab).';
+  const sys = { role:'system', content: jarvisSystemPrompt() + '\n\nAktuelle Daten:\n' + gatherJarvisContext() };
+  jarvisHistory.push({ role:'user', content:userText });
+  try{
+    let res = await jarvisCall({ type:'chat', messages:[sys, ...jarvisHistory.slice(-10)], tools:JARVIS_TOOLS });
+    let data = await res.json();
+    let msg = data.choices?.[0]?.message;
+    if(!msg) return 'Hm, da kam keine Antwort. (' + (data.error||'unbekannt') + ')';
+
+    if(msg.tool_calls?.length){
+      jarvisHistory.push(msg);
+      for(const tc of msg.tool_calls){
+        let result = 'ok';
+        if(tc.function.name === 'add_todo'){
+          const a = JSON.parse(tc.function.arguments || '{}');
+          result = jarvisAddTodo(a.text, a.date);
+        }
+        jarvisHistory.push({ role:'tool', tool_call_id:tc.id, content:result });
+      }
+      res = await jarvisCall({ type:'chat', messages:[sys, ...jarvisHistory.slice(-12)] });
+      data = await res.json();
+      const reply = data.choices?.[0]?.message?.content || 'Erledigt.';
+      jarvisHistory.push({ role:'assistant', content:reply });
+      return reply;
+    }
+    jarvisHistory.push({ role:'assistant', content:msg.content });
+    return msg.content;
+  } catch(e){ return 'Fehler: ' + e; }
+}
+
+async function jarvisSend(){
+  const inp = document.getElementById('jarvis-text');
+  const t = inp.value.trim(); if(!t) return;
+  inp.value=''; jarvisPushMsg('user', t);
+  const reply = await jarvisAsk(t);
+  jarvisPushMsg('jarvis', reply); jarvisSpeak(reply);
+}
+
+function jarvisListen(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ jarvisPushMsg('jarvis','Spracherkennung wird hier nicht unterstützt — tippe bitte.'); return; }
+  const rec = new SR(); rec.lang='de-DE'; rec.interimResults=false;
+  rec.onresult = async (e)=>{
+    const t = e.results[0][0].transcript;
+    jarvisPushMsg('user', t);
+    const reply = await jarvisAsk(t);
+    jarvisPushMsg('jarvis', reply); jarvisSpeak(reply);
+  };
+  rec.onerror = (e)=> jarvisPushMsg('jarvis','Mikrofon-Fehler: '+e.error);
+  rec.start();
+}
+
+async function jarvisSpeak(text){
+  if(!jarvisVoiceOn) return;
+  try{
+    const res = await jarvisCall({ type:'tts', text });
+    if(!res.ok) return;
+    const buf = await res.arrayBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type:'audio/mpeg' }));
+    new Audio(url).play();
+  } catch(e){}
+}
+
+async function jarvisCheckin(){
+  const h = new Date().getHours();
+  const phase = h < 11 ? 'Morgen' : h < 17 ? 'Mittag' : 'Abend';
+  jarvisPushMsg('jarvis', '…');
+  const reply = await jarvisAsk(`(System: Starte den ${phase}-Check-in. Begrüße mich kurz und persönlich anhand meiner Daten und stelle die passenden Fragen für die Tageszeit „${phase}".)`);
+  document.querySelector('#jarvis-msgs .jmsg.jarvis:last-child').textContent = reply;
+  jarvisSpeak(reply);
+}
+
 </script>
+
+<!-- ═══ JARVIS Stufe 1 (provisorisches Panel) ═══ -->
+<button id="jarvis-fab" onclick="jarvisToggle()" aria-label="Jarvis">🔵</button>
+<div id="jarvis-panel">
+  <div id="jarvis-head">
+    <span>Jarvis</span>
+    <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer;">
+      <input type="checkbox" id="jarvis-voice" onchange="jarvisVoiceOn=this.checked"> Vorlesen
+    </label>
+    <button onclick="jarvisCheckin()" class="jarvis-mini">Check-in</button>
+    <button onclick="jarvisToggle()" class="jarvis-mini">✕</button>
+  </div>
+  <div id="jarvis-msgs"></div>
+  <div id="jarvis-input">
+    <input id="jarvis-text" placeholder="Schreib oder sprich…" onkeydown="if(event.key==='Enter')jarvisSend()">
+    <button onclick="jarvisListen()" class="jarvis-mini" title="Sprechen">🎙️</button>
+    <button onclick="jarvisSend()" class="jarvis-mini">➤</button>
+  </div>
+</div>
+
 </body>
 </html>
