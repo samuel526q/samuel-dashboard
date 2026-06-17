@@ -602,6 +602,7 @@
   .jarvis-mini.recording{ background:rgba(239,68,68,0.25); border-color:var(--red); color:#fff; animation:jpulse 1.1s ease-in-out infinite; }
   @keyframes jpulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,0.55);} 50%{ box-shadow:0 0 0 7px rgba(239,68,68,0);} }
   #jarvis-text.listening{ border-color:var(--red); }
+  #jarvis-live-btn.live-active{ background:rgba(16,185,129,0.25); border-color:var(--green); color:#fff; }
   </style>
 </head>
 <body>
@@ -3397,17 +3398,33 @@ function gatherJarvisContext(){
   return `Datum heute: ${today}\nGym-Streak: ${streak}\nNächstes/aktuelles Workout: ${woCur}\nOffene To-Dos:\n${todos}`;
 }
 
-const JARVIS_TOOLS = [{
-  type:"function",
-  function:{
-    name:"add_todo",
+const JARVIS_TOOLS = [
+  { type:"function", function:{ name:"add_todo",
     description:"Fügt ein To-Do zu Samuels Liste hinzu, wenn er etwas erledigen oder sich merken will.",
     parameters:{ type:"object", properties:{
       text:{type:"string", description:"Die Aufgabe"},
       date:{type:"string", description:"Datum YYYY-MM-DD, Standard heute"}
-    }, required:["text"] }
-  }
-}];
+    }, required:["text"] } }},
+  { type:"function", function:{ name:"log_water",
+    description:"Trägt getrunkene Wassermenge für heute ein.",
+    parameters:{ type:"object", properties:{ liter:{type:"number", description:"Liter, z.B. 0.5"} }, required:["liter"] } }},
+  { type:"function", function:{ name:"log_supplement",
+    description:"Markiert ein eingenommenes Supplement für heute. Mögliche Namen: Kreatin, L-Theanin, Magnesium, Ashwagandha, Omega-3, Vitamin D, Vitamin C, Probiona, Purella.",
+    parameters:{ type:"object", properties:{ name:{type:"string"} }, required:["name"] } }},
+  { type:"function", function:{ name:"log_workout_set",
+    description:"Loggt einen Trainingssatz zur aktuellen Workout-Session.",
+    parameters:{ type:"object", properties:{
+      uebung:{type:"string", description:"Name der Übung"},
+      gewicht:{type:"number", description:"Gewicht in kg"},
+      wiederholungen:{type:"number", description:"Anzahl Wiederholungen"}
+    }, required:["uebung"] } }},
+  { type:"function", function:{ name:"log_mood",
+    description:"Trägt Stimmung/Energie ein (1-10).",
+    parameters:{ type:"object", properties:{
+      wert:{type:"number", description:"Wert 1-10"},
+      notiz:{type:"string", description:"Optionale Notiz"}
+    }, required:["wert"] } }}
+];
 
 function jarvisAddTodo(text, date){
   if(!S.all_todos) S.all_todos = [];
@@ -3415,6 +3432,53 @@ function jarvisAddTodo(text, date){
   upsert('all_todos', S.all_todos);
   if(typeof renderTodos === 'function') renderTodos();
   return `To-Do gespeichert: ${text} (${date||TODAY})`;
+}
+
+function jarvisLogWater(liter){
+  const glasses = Math.max(1, Math.round(liter * 4));
+  S.water = Math.min(8, (S.water||0) + glasses);
+  upsert(`water_${TODAY}`, S.water);
+  if(typeof renderWater === 'function') renderWater();
+  return `Wasser: +${glasses} Glas (${liter}L) → jetzt ${S.water}/8`;
+}
+
+function jarvisLogSupplement(name){
+  const n = name.toLowerCase();
+  const map = { kreatin:'kreatin', 'l-theanin':'ltheanin', theanin:'ltheanin', magnesium:'magnesium',
+    ashwagandha:'ashwagandha', omega:'omega3', 'vitamin d':'vitamind', 'vitamin c':'vitaminc',
+    probiona:'probiona', purella:'purella' };
+  let id = null;
+  for(const [k,v] of Object.entries(map)){ if(n.includes(k)){ id=v; break; } }
+  if(!id) return `Supplement "${name}" nicht gefunden. Verfügbar: Kreatin, L-Theanin, Magnesium, Ashwagandha, Omega-3, Vitamin D, Vitamin C, Probiona, Purella.`;
+  if(typeof logSupp === 'function'){ logSupp(id); return `${name} als eingenommen markiert.`; }
+  return 'Supplement-Funktion nicht verfügbar.';
+}
+
+function jarvisLogWorkoutSet(uebung, gewicht, wiederholungen){
+  if(!S.wo_session || !Array.isArray(S.wo_session.exercises)) return 'Keine aktive Workout-Session.';
+  const exs = S.wo_session.exercises;
+  let ei = exs.findIndex(e => e.name.toLowerCase().includes(uebung.toLowerCase()));
+  if(ei === -1){
+    exs.push({ name: uebung, sets:[], setCount:1, targetSets:3 });
+    ei = exs.length - 1;
+  }
+  const ex = exs[ei];
+  if(!ex.sets) ex.sets = [];
+  const si = ex.sets.length;
+  ex.sets.push({ kg: gewicht||0, reps: wiederholungen||0, bw: !gewicht, rir: null });
+  ex.setCount = Math.max(ex.setCount||1, ex.sets.length);
+  if(typeof saveSession === 'function') saveSession();
+  if(typeof renderWorkout === 'function') renderWorkout();
+  return `${uebung} – Satz ${si+1}: ${gewicht||'BW'}kg × ${wiederholungen||'?'} geloggt.`;
+}
+
+function jarvisLogMood(wert, notiz){
+  if(!S.mood) S.mood = {energy:5, mood:5};
+  S.mood.mood = Math.max(1, Math.min(10, wert));
+  S.mood.energy = S.mood.mood;
+  if(notiz) S.mood.note = notiz;
+  upsert(`mood_${TODAY}`, S.mood);
+  return `Mood/Energie auf ${wert}/10 gesetzt.${notiz ? ' Notiz: '+notiz : ''}`;
 }
 
 function jarvisPushMsg(who, text){
@@ -3450,10 +3514,12 @@ async function jarvisAsk(userText){
       jarvisHistory.push(msg);
       for(const tc of msg.tool_calls){
         let result = 'ok';
-        if(tc.function.name === 'add_todo'){
-          const a = JSON.parse(tc.function.arguments || '{}');
-          result = jarvisAddTodo(a.text, a.date);
-        }
+        const a = JSON.parse(tc.function.arguments || '{}');
+        if(tc.function.name === 'add_todo')             result = jarvisAddTodo(a.text, a.date);
+        else if(tc.function.name === 'log_water')       result = jarvisLogWater(a.liter);
+        else if(tc.function.name === 'log_supplement')  result = jarvisLogSupplement(a.name);
+        else if(tc.function.name === 'log_workout_set') result = jarvisLogWorkoutSet(a.uebung, a.gewicht, a.wiederholungen);
+        else if(tc.function.name === 'log_mood')        result = jarvisLogMood(a.wert, a.notiz);
         jarvisHistory.push({ role:'tool', tool_call_id:tc.id, content:result });
       }
       res = await jarvisCall({ type:'chat', messages:[sys, ...jarvisHistory.slice(-12)] });
@@ -3535,6 +3601,78 @@ async function jarvisSpeak(text){
   } catch(e){}
 }
 
+// ── Realtime Live-Modus (WebRTC) ──
+let jarvisRT = null;
+
+async function jarvisToggleLive(){
+  if(jarvisRT){ jarvisStopLive(); return; }
+  try{
+    const res = await jarvisCall({ type:'realtime_token' });
+    const tok = await res.json();
+    const EPHEMERAL = tok.client_secret?.value || tok.value;
+    if(!EPHEMERAL){ jarvisPushMsg('jarvis','Konnte keinen Live-Token holen.'); return; }
+
+    const pc = new RTCPeerConnection();
+    const audioEl = new Audio(); audioEl.autoplay = true;
+    pc.ontrack = (e)=>{ audioEl.srcObject = e.streams[0]; };
+    const mic = await navigator.mediaDevices.getUserMedia({ audio:true });
+    pc.addTrack(mic.getTracks()[0], mic);
+
+    const dc = pc.createDataChannel('oai-events');
+    dc.onopen = ()=>{
+      dc.send(JSON.stringify({ type:'session.update', session:{
+        instructions: jarvisSystemPrompt() + '\n\nAktuelle Daten:\n' + gatherJarvisContext(),
+        tools: JARVIS_TOOLS.map(t=>({ type:'function', name:t.function.name, description:t.function.description, parameters:t.function.parameters })),
+        tool_choice:'auto'
+      }}));
+    };
+    dc.onmessage = (e)=> jarvisHandleRTEvent(JSON.parse(e.data));
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    const model = 'gpt-4o-mini-realtime-preview';
+    const sdpRes = await fetch(`https://api.openai.com/v1/realtime?model=${model}`, {
+      method:'POST', body: offer.sdp,
+      headers:{ Authorization:`Bearer ${EPHEMERAL}`, 'Content-Type':'application/sdp' }
+    });
+    await pc.setRemoteDescription({ type:'answer', sdp: await sdpRes.text() });
+
+    jarvisRT = { pc, dc, mic, audioEl };
+    document.getElementById('jarvis-live-btn').classList.add('live-active');
+    document.getElementById('jarvis-live-btn').textContent = '⏹ Live';
+    jarvisPushMsg('jarvis','● Live — sprich einfach los.');
+  } catch(err){ jarvisPushMsg('jarvis','Live-Fehler: '+err); }
+}
+
+function jarvisStopLive(){
+  if(!jarvisRT) return;
+  try{ jarvisRT.mic.getTracks().forEach(t=>t.stop()); jarvisRT.pc.close(); }catch(_){}
+  jarvisRT = null;
+  const b = document.getElementById('jarvis-live-btn');
+  if(b){ b.classList.remove('live-active'); b.textContent = '🎧 Live'; }
+  jarvisPushMsg('jarvis','Live-Modus beendet.');
+}
+
+async function jarvisHandleRTEvent(ev){
+  if(ev.type === 'response.audio_transcript.done' && ev.transcript){
+    jarvisPushMsg('jarvis', ev.transcript);
+  }
+  if(ev.type === 'response.function_call_arguments.done'){
+    const args = JSON.parse(ev.arguments || '{}');
+    let result = 'ok';
+    if(ev.name === 'add_todo')             result = jarvisAddTodo(args.text, args.date);
+    else if(ev.name === 'log_water')       result = jarvisLogWater(args.liter);
+    else if(ev.name === 'log_supplement')  result = jarvisLogSupplement(args.name);
+    else if(ev.name === 'log_workout_set') result = jarvisLogWorkoutSet(args.uebung, args.gewicht, args.wiederholungen);
+    else if(ev.name === 'log_mood')        result = jarvisLogMood(args.wert, args.notiz);
+    if(jarvisRT?.dc?.readyState === 'open'){
+      jarvisRT.dc.send(JSON.stringify({ type:'conversation.item.create',
+        item:{ type:'function_call_output', call_id: ev.call_id, output: result } }));
+      jarvisRT.dc.send(JSON.stringify({ type:'response.create' }));
+    }
+  }
+}
+
 async function jarvisCheckin(){
   const h = new Date().getHours();
   const phase = h < 11 ? 'Morgen' : h < 17 ? 'Mittag' : 'Abend';
@@ -3554,6 +3692,7 @@ async function jarvisCheckin(){
     <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer;">
       <input type="checkbox" id="jarvis-voice" onchange="jarvisVoiceOn=this.checked"> Vorlesen
     </label>
+    <button id="jarvis-live-btn" onclick="jarvisToggleLive()" class="jarvis-mini">🎧 Live</button>
     <button onclick="jarvisCheckin()" class="jarvis-mini">Check-in</button>
     <button onclick="jarvisToggle()" class="jarvis-mini">✕</button>
   </div>
