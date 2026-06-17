@@ -3631,10 +3631,18 @@ async function jarvisToggleLive(){
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     const model = 'gpt-4o-mini-realtime-preview';
-    const sdpRes = await fetch(`https://api.openai.com/v1/realtime?model=${model}`, {
+    let sdpRes = await fetch(`https://api.openai.com/v1/realtime/calls?model=${model}`, {
       method:'POST', body: offer.sdp,
       headers:{ Authorization:`Bearer ${EPHEMERAL}`, 'Content-Type':'application/sdp' }
     });
+    // Fallback auf den älteren Endpoint, falls /calls nicht verfügbar
+    if(!sdpRes.ok){
+      sdpRes = await fetch(`https://api.openai.com/v1/realtime?model=${model}`, {
+        method:'POST', body: offer.sdp,
+        headers:{ Authorization:`Bearer ${EPHEMERAL}`, 'Content-Type':'application/sdp' }
+      });
+    }
+    if(!sdpRes.ok){ jarvisPushMsg('jarvis','Live-Verbindung fehlgeschlagen ('+sdpRes.status+').'); try{ pc.close(); mic.getTracks().forEach(t=>t.stop()); }catch(_){} return; }
     await pc.setRemoteDescription({ type:'answer', sdp: await sdpRes.text() });
 
     jarvisRT = { pc, dc, mic, audioEl };
