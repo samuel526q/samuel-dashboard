@@ -7,6 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0c">
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <title>Samuel · Jarvis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +25,8 @@
   --body:-apple-system,BlinkMacSystemFont,'Space Grotesk',system-ui,sans-serif;
   --safe-b:env(safe-area-inset-bottom,0px);
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+input,textarea{-webkit-user-select:text;user-select:text;}
 html,body{margin:0;padding:0;background:#050507;height:100%;overflow:hidden;}
 .jw-app{position:relative;width:100%;max-width:520px;height:100dvh;min-height:640px;margin:0 auto;
   background:radial-gradient(120% 90% at 50% 8%,#15151b 0%,var(--bg2) 38%,var(--bg) 78%);
