@@ -3162,7 +3162,8 @@ function getSuppState() {
   return s;
 }
 function saveSuppState(state) {
-  localStorage.setItem('supp_state', JSON.stringify(state));
+  // upsert schreibt localStorage UND synct nach Supabase (app_state key 'supp_state')
+  upsert('supp_state', state);
 }
 function logSupp(id) {
   const state = getSuppState();
@@ -3313,6 +3314,7 @@ async function init() {
     dbRead('all_todos'),
     dbRead('wo_plan'),
     dbRead('wo_records'),
+    dbRead('supp_state'),
   ]);
 
   S.routine = routine || {};
