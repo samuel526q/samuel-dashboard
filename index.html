@@ -1162,7 +1162,7 @@ function jarvisOpenChat(mode){
   (mode==='voice') ? enterVoice() : enterText();
 }
 function jarvisCloseChat(){ document.getElementById('jarvis-panel').classList.remove('open'); setOrb('idle'); if(jarvisRT) jarvisStopLive(); if(jarvisRecording) jarvisStopMic(); }
-function jarvisTapVoice(){ jarvisOpenChat('voice'); }
+function jarvisTapVoice(){ jarvisToggleHomeLive(); }   // Einzeltipp = Jarvis direkt auf dem Home-Orb (Live), kein Chat
 function setMode(m){   // nur CSS-Umschaltung, keine Seiteneffekte
   const p=document.getElementById('jarvis-panel');
   p.classList.toggle('voice-mode', m==='voice');
@@ -1350,19 +1350,35 @@ async function jarvisSpeak(text){
 
 /* ── Realtime Live-Modus (WebRTC) ── */
 let jarvisRT=null;
+let jarvisHomeLive=false;      // true = Live läuft direkt auf dem Home-Orb (ohne Chatfenster)
+let jarvisSpeakResetT=null;
 function setLiveBadge(on, txt){
   const b=document.getElementById('jarvis-live-badge'); const t=document.getElementById('jarvis-live-badge-txt');
   if(b) b.classList.toggle('on', on); if(t) t.textContent = txt || (on?'Live Gespräch':'Voice — tippe das Mikro');
   const btn=document.getElementById('jarvis-live-btn'); if(btn) btn.classList.toggle('live-on', on);
 }
+// Einzeltipp auf den Home-Orb: Live direkt aktivieren (Speech-to-Speech), Orb pulsiert. Nochmal tippen = beenden.
+function jarvisToggleHomeLive(){
+  if(jarvisRT){ jarvisStopLive(); return; }
+  jarvisHomeLive=true;
+  jarvisStartLive();
+}
+// Chat-Live-Button / Voice-Modus im Chatfenster
 async function jarvisToggleLive(){
   if(jarvisRT){ jarvisStopLive(); return; }
-  setMode('voice');
+  jarvisHomeLive=false;
+  jarvisStartLive();
+}
+async function jarvisStartLive(){
+  const home=jarvisHomeLive;
+  setOrb('listening');
+  if(home){ const gl=document.getElementById('jw-greetline'); if(gl){ gl._prev=gl.textContent; gl.textContent='● Live — sprich einfach los'; } }
+  const fail=(msg)=>{ setOrb('idle'); jarvisHomeLive=false; const gl=document.getElementById('jw-greetline'); if(gl&&gl._prev){ gl.textContent=gl._prev; } if(!home) jarvisPushMsg('jarvis', msg); };
   try{
     const res=await jarvisCall({ type:'realtime_token' });
     const tok=await res.json();
     const EPHEMERAL=tok.client_secret?.value || tok.value;
-    if(!EPHEMERAL){ jarvisPushMsg('jarvis','Konnte keinen Live-Token holen.'); return; }
+    if(!EPHEMERAL){ fail('Konnte keinen Live-Token holen.'); return; }
     const pc=new RTCPeerConnection();
     const audioEl=new Audio(); audioEl.autoplay=true;
     pc.ontrack=(e)=>{ audioEl.srcObject=e.streams[0]; };
@@ -1376,20 +1392,26 @@ async function jarvisToggleLive(){
     dc.onmessage=(e)=>jarvisHandleRTEvent(JSON.parse(e.data));
     const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
     const sdpRes=await fetch('https://api.openai.com/v1/realtime/calls', { method:'POST', body:offer.sdp, headers:{ Authorization:`Bearer ${EPHEMERAL}`, 'Content-Type':'application/sdp' } });
-    if(!sdpRes.ok){ const errTxt=await sdpRes.text().catch(()=> ''); jarvisPushMsg('jarvis','Live-Verbindung fehlgeschlagen ('+sdpRes.status+'). '+errTxt.slice(0,200)); try{ pc.close(); mic.getTracks().forEach(t=>t.stop()); }catch(_){} return; }
+    if(!sdpRes.ok){ const errTxt=await sdpRes.text().catch(()=> ''); fail('Live-Verbindung fehlgeschlagen ('+sdpRes.status+'). '+errTxt.slice(0,200)); try{ pc.close(); mic.getTracks().forEach(t=>t.stop()); }catch(_){} return; }
     await pc.setRemoteDescription({ type:'answer', sdp: await sdpRes.text() });
     jarvisRT={ pc, dc, mic, audioEl };
-    setLiveBadge(true,'Live Gespräch'); setOrb('speaking');
-    const vt=document.getElementById('jarvis-voice-transcript'); if(vt) vt.innerHTML='<b>Sprich einfach los…</b>';
-  }catch(err){ jarvisPushMsg('jarvis','Live-Fehler: '+err); }
+    setOrb('listening');
+    if(!home){ setMode('voice'); setLiveBadge(true,'Live Gespräch'); const vt=document.getElementById('jarvis-voice-transcript'); if(vt) vt.innerHTML='<b>Sprich einfach los…</b>'; }
+  }catch(err){ fail('Live-Fehler: '+err); }
 }
 function jarvisStopLive(){
-  if(!jarvisRT) return;
-  try{ jarvisRT.mic.getTracks().forEach(t=>t.stop()); jarvisRT.pc.close(); }catch(_){}
-  jarvisRT=null; setLiveBadge(false); setOrb('idle');
+  const wasHome=jarvisHomeLive;
+  if(jarvisRT){ try{ jarvisRT.mic.getTracks().forEach(t=>t.stop()); jarvisRT.pc.close(); }catch(_){} }
+  jarvisRT=null; jarvisHomeLive=false;
+  clearTimeout(jarvisSpeakResetT);
+  setLiveBadge(false); setOrb('idle');
+  const gl=document.getElementById('jw-greetline'); if(gl&&gl._prev){ gl.textContent=gl._prev; gl._prev=null; }
 }
 async function jarvisHandleRTEvent(ev){
-  if(ev.type==='response.audio_transcript.done' && ev.transcript){ jarvisPushMsg('jarvis', ev.transcript); }
+  if(ev.type==='response.audio_transcript.done' && ev.transcript){
+    if(!jarvisHomeLive) jarvisPushMsg('jarvis', ev.transcript);
+    if(jarvisRT){ setOrb('speaking'); clearTimeout(jarvisSpeakResetT); jarvisSpeakResetT=setTimeout(()=>{ if(jarvisRT) setOrb('listening'); }, 2600); }
+  }
   if(ev.type==='response.function_call_arguments.done'){
     const args=JSON.parse(ev.arguments||'{}'); let result='ok';
     if(ev.name==='add_todo') result=jarvisAddTodo(args.text,args.date);
