@@ -305,10 +305,8 @@ textarea.note:focus{outline:none;border-color:var(--accent);}
 
   <div class="jw-fog"><i></i><i></i><i></i></div>
 
-  <div class="jw-status">
-    <span id="jw-clock">–</span>
-    <span class="dots"><i id="sync-err-dot"></i><b></b><b></b><b></b></span>
-  </div>
+  <!-- Sync-Status (unsichtbar, nur für setSyncError) -->
+  <i id="sync-err-dot" style="position:absolute;top:8px;right:10px;z-index:7;"></i>
 
   <!-- ============ MAIN ORB SCREEN ============ -->
   <div class="jw-main">
@@ -393,7 +391,7 @@ textarea.note:focus{outline:none;border-color:var(--accent);}
   </div>
 
   <!-- ============ DEEP CHAT PANEL ============ -->
-  <div id="jarvis-panel" class="voice-mode">
+  <div id="jarvis-panel" class="text-mode">
     <div class="p-fog"><i></i><i></i></div>
     <div class="chat-top">
       <div class="chat-close" onclick="jarvisCloseChat()"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
@@ -1155,21 +1153,27 @@ let jarvisVoiceOn = true;          // im Orb-Design standardmäßig vorlesen
 let jarvisHistory = [];
 
 /* ----- Chat öffnen/schließen + Gesten ----- */
+// Einzeltipp (Orb) → Voice-Modus + Live startet automatisch.
+// Doppeltipp (Orb) → Text-Modus (Chat), Standard.
 function jarvisOpenChat(mode){
   const p=document.getElementById('jarvis-panel');
   p.classList.add('open');
-  setMode(mode||'voice');
   setOrb('speaking');
+  (mode==='voice') ? enterVoice() : enterText();
 }
-function jarvisCloseChat(){ document.getElementById('jarvis-panel').classList.remove('open'); setOrb('idle'); if(jarvisRT) jarvisStopLive(); }
-function jarvisTapVoice(){ jarvisOpenChat('voice'); }   // Einzeltipp → Voice-Ansicht
-function setMode(m){
+function jarvisCloseChat(){ document.getElementById('jarvis-panel').classList.remove('open'); setOrb('idle'); if(jarvisRT) jarvisStopLive(); if(jarvisRecording) jarvisStopMic(); }
+function jarvisTapVoice(){ jarvisOpenChat('voice'); }
+function setMode(m){   // nur CSS-Umschaltung, keine Seiteneffekte
   const p=document.getElementById('jarvis-panel');
   p.classList.toggle('voice-mode', m==='voice');
   p.classList.toggle('text-mode', m==='text');
 }
+function enterVoice(){ setMode('voice'); if(!jarvisRT) jarvisToggleLive(); }   // Voice = automatisch Live, kein Mikro-Tipp
+function enterText(){ setMode('text'); if(jarvisRT) jarvisStopLive(); if(jarvisRecording) jarvisStopMic(); }
 function wireJarvisChat(){
-  document.querySelectorAll('#jarvis-mode-toggle .seg').forEach(seg=>seg.addEventListener('click',()=>setMode(seg.getAttribute('data-mode'))));
+  document.querySelectorAll('#jarvis-mode-toggle .seg').forEach(seg=>seg.addEventListener('click',()=>{
+    seg.getAttribute('data-mode')==='voice' ? enterVoice() : enterText();
+  }));
 }
 
 function jarvisSystemPrompt(){
