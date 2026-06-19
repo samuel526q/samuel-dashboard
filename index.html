@@ -455,6 +455,7 @@ let S = {
   routine:{}, wo_last:'Pull', wo_current:'Push', wo_session:{},
   h75:{start:null,days:{}}, water:0, post:false,
   mood:{energy:5,mood:5}, notes:'', evening:{}, tracking:{}, all_todos:[],
+  reha:{}, reha_log:{ ext:'', flex:'', pain:0, swell:0 },
 };
 let WP = null;
 function getPlan(){ return WP || DEFAULT_PLAN; }
@@ -468,7 +469,28 @@ const ROUTINE = [
   {em:'🧠', tx:'Deep Work Block 1',     ht:'90 min',            type:'timer', duration:90},
   {em:'☕', tx:'Pause',                  ht:'15 min',            type:'timer', duration:15},
   {em:'🧠', tx:'Deep Work Block 2',     ht:'90 min',            type:'timer', duration:90},
+  {em:'🦵', tx:'Knie-Streckung',        ht:'10–15 Min · Reha',  type:'check'},
 ];
+// Reha-Modul (Knie / VKB) — OP 16.06.2026
+const REHA_EXERCISES = [
+  "Streckung passiv (Heel Prop) — 10–15 Min, halten",
+  "Prone Hang (ab Woche 2)",
+  "Quad-Sets — 3×10–15",
+  "Patella-Mobilisation",
+  "Sprunggelenk-Pumpen",
+  "Heel Slides (Beugung, schmerzfrei)",
+  "Straight Leg Raise (wenn ohne Lag)",
+  "Waden-Dehnung",
+  "Hochlagern + Kühlen"
+];
+const OP_DATE = new Date(2026,5,16);
+function rehaDay(){ return Math.max(0, Math.floor((new Date() - OP_DATE)/86400000)); }
+function rehaPhase(d){
+  if(d < 28) return "Phase 1 · Streckung & Quad";
+  if(d < 84) return "Phase 2 · Flexion & Kraft";
+  if(d < 140) return "Phase 3 · Laufen anbahnen";
+  return "Phase 4–5 · Richtung Sport";
+}
 const DEFAULT_PLAN = {
   Pull:[
     {id:'pull_1', name:'Weighted Pull-ups',   kg:10,   bw:false, sets:4, reps:'3–4',   optional:false},
@@ -518,7 +540,7 @@ const SUPPS = [
   { id:'probiona',    label:'Probiona',            emoji:'🦠', max:1, note:'20 Mrd KBE' },
   { id:'purella',     label:'Purella',             emoji:'🌱', max:1, note:'Optional' },
 ];
-const EVENING_ITEMS = [ {ic:'🧘', lb:'Meditation', ht:'10–15 min'} ];
+const EVENING_ITEMS = [ {ic:'🧘', lb:'Meditation', ht:'10–15 min'}, {ic:'🦵', lb:'Knie-Streckung + Kühlen', ht:'Reha'} ];
 
 /* Supplement-State (gleiche Keys/Logik wie bisher) */
 function getSuppState(){
@@ -612,11 +634,58 @@ function ringTile(value, label, frac, color){
     <circle class="fg" cx="35" cy="35" r="28" fill="none" stroke-width="7" stroke-dasharray="${C}" stroke-dashoffset="${off.toFixed(1)}" style="stroke:${color||'var(--accent-solid)'}"/></svg>
     <div class="rv">${value}</div><div class="rl">${label}</div></div>`;
 }
+/* ── Reha-Modul (Knie / VKB) ── */
+function toggleReha(idx){
+  S.reha[idx] = !S.reha[idx];
+  upsert(`reha_${TODAY}`, S.reha);
+  haptic(20); flashConfirm(); renderGesundheit();
+}
+function setRehaLog(field, val){
+  S.reha_log[field] = val;
+  upsert(`reha_log_${TODAY}`, S.reha_log);
+  flashConfirm(); renderGesundheit();
+}
+function rehaBlockHtml(){
+  const checkSvg='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>';
+  const day=rehaDay(), phase=rehaPhase(day);
+  const done=REHA_EXERCISES.filter((_,i)=>S.reha[i]).length;
+  const log=S.reha_log||{ext:'',flex:'',pain:0,swell:0};
+  let items='';
+  REHA_EXERCISES.forEach((tx,i)=>{
+    const on=!!S.reha[i];
+    items+=`<div class="chk${on?' done':''}" onclick="toggleReha(${i})"><span class="box">${checkSvg}</span><span class="ct">${tx}</span></div>`;
+  });
+  // Buttons-Helfer
+  const pill=(active,onclick,label)=>`<button class="btn${active?' primary':''}" style="padding:8px 11px;font-size:12px;" onclick="${onclick}">${label}</button>`;
+  const flexBtns=[60,75,90,95,100,110,120].map(v=>pill(log.flex===v, `setRehaLog('flex',${v})`, v+'°')).join('');
+  const extBtns=[['voll','voll'],['fast','fast'],['Defizit','defizit']].map(([lbl,val])=>pill(log.ext===val, `setRehaLog('ext','${val}')`, lbl)).join('');
+  const swellBtns=[['keine',0],['leicht',1],['mittel',2],['stark',3]].map(([lbl,val])=>pill(log.swell===val, `setRehaLog('swell',${val})`, lbl)).join('');
+  let painBtns=''; for(let p=0;p<=10;p++){ painBtns+=pill(log.pain===p, `setRehaLog('pain',${p})`, p); }
+  return `
+    <div class="card" style="border-color:rgba(190,195,215,.22);">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px;">
+        <div style="font-family:var(--disp);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);font-weight:600;">🦵 Reha · ${done}/${REHA_EXERCISES.length}</div>
+      </div>
+      <div style="font-family:var(--disp);font-size:15px;font-weight:600;color:var(--accent-solid);margin-bottom:14px;">Tag ${day} nach OP — ${phase}</div>
+      ${items}
+    </div>
+    <div class="card"><h3>Heutiger Status</h3>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Beugung (°)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">${flexBtns}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Streckung</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">${extBtns}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Schmerz (0–10)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px;">${painBtns}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Schwellung</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${swellBtns}</div>
+    </div>`;
+}
 async function renderGesundheit(){
   const wrap=document.getElementById('pb-gesundheit');
+  const reha=rehaBlockHtml();
   const c=getCfg();
-  if(!c.url||!c.key){ wrap.innerHTML='<div class="muted-line">Supabase nicht verbunden (Settings).</div>'; return; }
-  wrap.innerHTML='<div class="muted-line">Lädt Gesundheitsdaten…</div>';
+  if(!c.url||!c.key){ wrap.innerHTML=reha+'<div class="muted-line">Health-Daten: Supabase nicht verbunden (Settings).</div>'; return; }
+  wrap.innerHTML=reha+'<div class="muted-line">Lädt Gesundheitsdaten…</div>';
   try{
     const today=new Date().toISOString().split('T')[0];
     const res=await fetch(`${c.url}/rest/v1/health_data?select=*&order=date.desc&limit=7`, { headers:{ 'apikey':c.key,'Authorization':`Bearer ${c.key}` } });
@@ -636,7 +705,7 @@ async function renderGesundheit(){
     const scoreCircC=2*Math.PI*54;
     const scoreOff = r.score==null?scoreCircC:scoreCircC-(r.score/100)*scoreCircC;
 
-    wrap.innerHTML = `
+    wrap.innerHTML = reha + `
       <div class="card" style="display:flex;align-items:center;gap:18px;">
         <div style="position:relative;width:128px;height:128px;flex:none;">
           <svg width="128" height="128" style="transform:rotate(-90deg);">
@@ -665,7 +734,7 @@ async function renderGesundheit(){
         <div style="position:relative;height:130px;"><canvas id="hr-chart"></canvas><div id="hr-chart-empty" style="display:none;text-align:center;color:var(--text-muted);font-size:13px;padding-top:48px;">Keine Puls-Timeline heute</div></div>
       </div>`;
     loadHRChart(today, c);
-  }catch(e){ wrap.innerHTML='<div class="muted-line">Fehler beim Laden.</div>'; console.error(e); }
+  }catch(e){ wrap.innerHTML=reha+'<div class="muted-line">Health-Daten: Fehler beim Laden.</div>'; console.error(e); }
 }
 function renderSleepPhases(d){
   if(!d||!d.sleep_minutes) return '';
@@ -1128,16 +1197,18 @@ async function init(){
 
   const c=getCfg();
   if(c.url && c.key){
-    const [routine,woLast,woCurr,woSess,h75,water,post,mood,notes,evening,tracking,allTodos,woPlan,woRecords] = await Promise.all([
+    const [routine,woLast,woCurr,woSess,h75,water,post,mood,notes,evening,tracking,allTodos,woPlan,woRecords,suppState,reha,rehaLog] = await Promise.all([
       dbRead(`r_${TODAY}`), dbRead('wo_last'), dbRead('wo_current'), dbRead(`wo_session_${TODAY}`),
       dbRead('h75'), dbRead(`water_${TODAY}`), dbRead(`post_${TODAY}`), dbRead(`mood_${TODAY}`),
       dbRead(`journal_${TODAY}`), dbRead(`evening_${TODAY}`), dbRead(`tracking_${TODAY}`),
       dbRead('all_todos'), dbRead('wo_plan'), dbRead('wo_records'), dbRead('supp_state'),
+      dbRead(`reha_${TODAY}`), dbRead(`reha_log_${TODAY}`),
     ]);
     S.routine=routine||{}; S.wo_last=woLast||'Pull'; S.wo_current=woCurr||'Push'; S.wo_session=woSess||{};
     S.h75=h75||{start:null,days:{}}; S.water=water||0; S.post=post||false;
     S.mood=mood||{energy:5,mood:5}; S.notes=notes||''; S.evening=evening||{}; S.tracking=tracking||{};
     S.all_todos=allTodos||[];
+    S.reha=reha||{}; S.reha_log=rehaLog||{ ext:'', flex:'', pain:0, swell:0 };
     WP=woPlan||null; S.wo_records=woRecords||{};
     if(!woPlan) upsert('wo_plan', DEFAULT_PLAN);
     flushPendingSync();
